@@ -48,9 +48,21 @@ module wb_stage (
     logic [31:0] wb_pc;
     logic wb_regfile_wen;
     assign {wb_pc, wb_result, wb_dst_addr, wb_regfile_wen} = ms_ws_bus_r;
-    assign regfile_wen = wb_regfile_wen;
-    assign regfile_addr = wb_dst_addr;
-    assign regfile_wdata = wb_result;
+
+    //使用写回端口仲裁器（单发射：直接透传，双发射时处理冲突）
+    logic stall_1;
+    write_port_arbiter u_write_port_arbiter (
+        .wb_wen_0(wb_regfile_wen),
+        .wb_addr_0(wb_dst_addr),
+        .wb_data_0(wb_result),
+        .wb_wen_1(1'b0),           // 单发射模式下第二指令无
+        .wb_addr_1(5'b0),
+        .wb_data_1(32'b0),
+        .regfile_wen(regfile_wen),
+        .regfile_waddr(regfile_addr),
+        .regfile_wdata(regfile_wdata),
+        .stall_1(stall_1)
+    );
     `ifdef DEBUG_EN
     assign debug_wb_pc = wb_pc;
     assign debug_wb_rf_addr = wb_dst_addr;

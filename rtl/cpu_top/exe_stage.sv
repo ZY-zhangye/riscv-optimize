@@ -170,25 +170,21 @@ module exe_stage(
     logic [1:0] src2_fwd;
     assign {reg_src1, reg_src2, src1_fwd, src2_fwd} = src_packet;
 
-    //操作数选择
+    //操作数选择（使用前递单元）
     logic [31:0] src1, src2;
     logic [31:0] csr_data;
-    always_comb begin
-        src1 = 32'b0;
-        unique case (1'b1)
-            src1_fwd[0]: src1 = exe_result_reg;
-            src1_fwd[1]: src1 = mem_result_reg;
-            default: src1 = reg_src1;
-        endcase
-    end
-    always_comb begin
-        src2 = 32'b0;
-        unique case (1'b1)
-            src2_fwd[0]: src2 = exe_result_reg;
-            src2_fwd[1]: src2 = mem_result_reg;
-            default: src2 = reg_src2;
-        endcase
-    end
+
+    forwarding_unit u_forwarding_unit (
+        .reg_src1(reg_src1),
+        .reg_src2(reg_src2),
+        .exe_result_reg(exe_result_reg),
+        .mem_result_reg(mem_result_reg),
+        .src1_fwd(src1_fwd),
+        .src2_fwd(src2_fwd),
+        .src1(src1),
+        .src2(src2)
+    );
+
     assign csr_data = csr_rdata_fwd ? csr_wdata_reg : csr_rdata;
 
     //BITMAN计算
@@ -278,23 +274,15 @@ module exe_stage(
         assign bitman_result = 32'b0;
     `endif
 
-    //ALU计算
+    //ALU计算（使用ALU包装单元）
     logic [31:0] alu_result;
-    always_comb begin
-        unique case (alu_op)
-            `ALU_OP_ADD: alu_result = src1 + src2;
-            `ALU_OP_SUB: alu_result = src1 - src2;
-            `ALU_OP_AND: alu_result = src1 & src2;
-            `ALU_OP_OR:  alu_result = src1 | src2;
-            `ALU_OP_XOR: alu_result = src1 ^ src2;
-            `ALU_OP_SLL: alu_result = src1 << src2[4:0];
-            `ALU_OP_SRL: alu_result = src1 >> src2[4:0];
-            `ALU_OP_SRA: alu_result = $signed(src1) >>> src2[4:0];
-            `ALU_OP_SLT: alu_result = ($signed(src1) < $signed(src2)) ? 32'b1 : 32'b0;
-            `ALU_OP_SLTU: alu_result = (src1 < src2) ? 32'b1 : 32'b0;
-            default: alu_result = 32'b0;
-        endcase
-    end
+
+    alu_wrapper u_alu_wrapper (
+        .alu_op(alu_op),
+        .src1(src1),
+        .src2(src2),
+        .alu_result(alu_result)
+    );
 
     //MUL计算
     logic [31:0] mul_result;

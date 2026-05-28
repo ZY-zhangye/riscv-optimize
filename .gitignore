@@ -8,6 +8,11 @@ xelab.pb
 webtalk*.log
 webtalk*.jou
 results/
+xsim.log
+xsim_*.backup.log
+test_snap.wdb
+compile.log
+.claude/scheduled_tasks.lock
 
 # Xilinx IP generated files
 *.dcp
