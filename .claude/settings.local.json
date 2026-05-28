@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv F:/riscv-optimize/project2_migration_clean/* F:/riscv-optimize/)",
+      "Bash(mv F:/riscv-optimize/project2_migration_clean/.* F:/riscv-optimize/)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}

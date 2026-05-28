@@ -1,0 +1,293 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+ .riscv.attributes
+                0x00000000       0x35 C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .rodata.str1.4
+                0x00000000       0x16 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .data.mem_name
+                0x00000000        0xc C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .riscv.attributes
+                0x00000000       0x33 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text.copy_info
+                0x00000000       0x14 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text.core_list_insert_new
+                0x00000000       0x60 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text.core_list_remove
+                0x00000000       0x28 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text.core_list_undo_remove
+                0x00000000       0x20 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text.core_list_find
+                0x00000000       0x4c C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text.core_list_reverse
+                0x00000000       0x24 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .riscv.attributes
+                0x00000000       0x33 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .text.matrix_sum
+                0x00000000       0x80 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .text.matrix_mul_const
+                0x00000000       0x4c C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .text.matrix_add_const
+                0x00000000       0x38 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .riscv.attributes
+                0x00000000       0x33 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .riscv.attributes
+                0x00000000       0x33 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .text.crcu8    0x00000000      0x130 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .riscv.attributes
+                0x00000000       0x33 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .riscv.attributes
+                0x00000000       0x37 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+INSTR            0x80000000         0x00004000         xr
+DATA             0x80100000         0x00040000         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+LOAD C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+LOAD C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+LOAD C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+LOAD C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+LOAD C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+LOAD C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80140000                        PROVIDE (__stack_top = (ORIGIN (DATA) + LENGTH (DATA)))
+
+.text           0x80000000     0x2dcc
+                0x80000000                        . = ALIGN (0x4)
+ *(.text.startup)
+ .text.startup  0x80000000       0x38 C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+                0x80000000                _start
+ *(.text)
+ *(.text.*)
+ .text.iterate  0x80000038       0x98 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+                0x80000038                iterate
+ .text.startup.main
+                0x800000d0      0x820 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+                0x800000d0                main
+ .text.cmp_idx  0x800008f0       0x54 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+                0x800008f0                cmp_idx
+ .text.calc_func
+                0x80000944      0x140 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+                0x80000944                calc_func
+ .text.cmp_complex
+                0x80000a84       0x50 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+                0x80000a84                cmp_complex
+ .text.core_list_mergesort
+                0x80000ad4      0x1b0 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+                0x80000ad4                core_list_mergesort
+ .text.core_bench_list
+                0x80000c84      0x314 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+                0x80000c84                core_bench_list
+ .text.core_list_init
+                0x80000f98      0x164 C:\Users\ZY\AppData\Local\Temp\ccySxm1c.o
+                0x80000f98                core_list_init
+ .text.core_init_matrix
+                0x800010fc      0x124 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+                0x800010fc                core_init_matrix
+ .text.matrix_mul_vect
+                0x80001220       0x58 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+                0x80001220                matrix_mul_vect
+ .text.matrix_mul_matrix
+                0x80001278       0xa0 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+                0x80001278                matrix_mul_matrix
+ .text.matrix_mul_matrix_bitextract
+                0x80001318       0xb4 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+                0x80001318                matrix_mul_matrix_bitextract
+ .text.matrix_test
+                0x800013cc      0x420 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+                0x800013cc                matrix_test
+ .text.core_bench_matrix
+                0x800017ec       0x44 C:\Users\ZY\AppData\Local\Temp\cc9BWjdN.o
+                0x800017ec                core_bench_matrix
+ .text.core_init_state
+                0x80001830      0x17c C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+                0x80001830                core_init_state
+ .text.core_state_transition
+                0x800019ac      0x2e8 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+                0x800019ac                core_state_transition
+ .text.core_bench_state
+                0x80001c94      0x1b0 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+                0x80001c94                core_bench_state
+ .text.get_seed_32
+                0x80001e44       0x64 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+                0x80001e44                get_seed_32
+ .text.crcu16   0x80001ea8      0x228 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+                0x80001ea8                crcu16
+ .text.crcu32   0x800020d0      0x420 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+                0x800020d0                crcu32
+ .text.crc16    0x800024f0      0x22c C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+                0x800024f0                crc16
+ .text.check_data_types
+                0x8000271c        0x8 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+                0x8000271c                check_data_types
+ .text.uart_putnum
+                0x80002724       0xd8 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .text.start_time
+                0x800027fc       0x14 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x800027fc                start_time
+ .text.stop_time
+                0x80002810       0x14 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80002810                stop_time
+ .text.get_time
+                0x80002824       0x18 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80002824                get_time
+ .text.time_in_secs
+                0x8000283c       0x14 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x8000283c                time_in_secs
+ .text.ee_printf
+                0x80002850      0x360 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80002850                ee_printf
+ .text.portable_init
+                0x80002bb0       0x44 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80002bb0                portable_init
+ .text.portable_fini
+                0x80002bf4      0x1d8 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80002bf4                portable_fini
+                0x80002dcc                        . = ALIGN (0x4)
+
+.trap           0x80002dcc        0x0
+                0x80002dcc                        . = ALIGN (0x4)
+ *(.trap)
+                0x80002dcc                        . = ALIGN (0x4)
+
+.rodata         0x80100000      0x8a4
+                0x80100000                        . = ALIGN (0x4)
+ *(.srodata)
+ *(.srodata.*)
+ *(.rodata)
+ .rodata        0x80100000      0x200 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ *(.rodata.*)
+ .rodata.main.str1.4
+                0x80100200      0x5ff C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+                                0x405 (size before relaxing)
+ *fill*         0x801007ff        0x1 
+ .rodata.state_known_crc
+                0x80100800        0xa C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ *fill*         0x8010080a        0x2 
+ .rodata.matrix_known_crc
+                0x8010080c        0xa C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ *fill*         0x80100816        0x2 
+ .rodata.list_known_crc
+                0x80100818        0xa C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+ .rodata.str1.4
+                0x80100822        0x0 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+                                 0xad (size before relaxing)
+ *fill*         0x80100822        0x2 
+ .rodata.errpat
+                0x80100824       0x10 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .rodata.scipat
+                0x80100834       0x10 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .rodata.floatpat
+                0x80100844       0x10 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .rodata.intpat
+                0x80100854       0x10 C:\Users\ZY\AppData\Local\Temp\ccOPnX9u.o
+ .rodata.get_seed_32
+                0x80100864       0x18 C:\Users\ZY\AppData\Local\Temp\ccFRHP9i.o
+ .rodata.ee_printf.str1.4
+                0x8010087c        0x0 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                                  0x8 (size before relaxing)
+ .rodata.portable_fini.str1.4
+                0x8010087c        0x0 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                                0x13f (size before relaxing)
+ .rodata.dec_pow10
+                0x8010087c       0x28 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x801008a4                        . = ALIGN (0x4)
+
+.rela.dyn       0x801008a4        0x0
+ .rela.text.startup
+                0x801008a4        0x0 C:\Users\ZY\AppData\Local\Temp\ccOr4eYv.o
+
+.data           0x801008a4        0x8
+                0x801008a4                        . = ALIGN (0x4)
+ *(.sdata)
+ *(.sdata.*)
+ *(.data)
+ *(.data.*)
+ .data.default_num_contexts
+                0x801008a4        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x801008a4                default_num_contexts
+ .data.seed3_volatile
+                0x801008a8        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x801008a8                seed3_volatile
+                0x801008ac                        . = ALIGN (0x4)
+
+.bss            0x801008ac      0x7e8
+                0x801008ac                        . = ALIGN (0x4)
+                0x801008ac                        __bss_start = .
+ *(.sbss)
+ *(.sbss.*)
+ *(.bss)
+ *(.bss.*)
+ .bss.static_memblk
+                0x801008ac      0x7d0 C:\Users\ZY\AppData\Local\Temp\ccRZXCAM.o
+                0x801008ac                static_memblk
+ .bss.stop_time_val
+                0x8010107c        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .bss.start_time_val
+                0x80101080        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+ .bss.seed5_volatile
+                0x80101084        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80101084                seed5_volatile
+ .bss.seed4_volatile
+                0x80101088        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80101088                seed4_volatile
+ .bss.seed2_volatile
+                0x8010108c        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x8010108c                seed2_volatile
+ .bss.seed1_volatile
+                0x80101090        0x4 C:\Users\ZY\AppData\Local\Temp\cc8GbhDe.o
+                0x80101090                seed1_volatile
+ *(COMMON)
+                0x80101094                        . = ALIGN (0x4)
+                0x80101094                        __bss_end = .
+
+/DISCARD/
+ *(.comment)
+ *(.riscv.attributes)
+ *(.note*)
+ *(.eh_frame*)
+OUTPUT(F:\riscv-gcc\build\coremark\coremark.elf elf32-littleriscv)

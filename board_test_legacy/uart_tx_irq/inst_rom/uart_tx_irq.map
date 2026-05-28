@@ -1,0 +1,91 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+ .riscv.attributes
+                0x00000000       0x27 C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+ .text          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ .data          0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ .bss           0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ .comment       0x00000000       0x34 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ .note.GNU-stack
+                0x00000000        0x0 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ .riscv.attributes
+                0x00000000       0x29 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+INSTR            0x80000000         0x00004000         xr
+DATA             0x80100000         0x00040000         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+LOAD C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+                0x80140000                        PROVIDE (__stack_top = (ORIGIN (DATA) + LENGTH (DATA)))
+
+.text           0x80000000       0xe8
+                0x80000000                        . = ALIGN (0x4)
+ *(.text.startup)
+ .text.startup  0x80000000       0x38 C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+                0x80000000                _start
+ *(.text)
+ *(.text.*)
+ .text.startup.main
+                0x80000038       0xb0 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+                0x80000038                main
+                0x800000e8                        . = ALIGN (0x4)
+
+.trap           0x800000e8       0xe8
+                0x800000e8                        . = ALIGN (0x4)
+ *(.trap)
+ .trap          0x800000e8       0xe8 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+                0x800000e8                trap_handler
+                0x800001d0                        . = ALIGN (0x4)
+
+.rodata         0x800001d0       0x18
+                0x800001d0                        . = ALIGN (0x4)
+ *(.srodata)
+ *(.srodata.*)
+ *(.rodata)
+ *(.rodata.*)
+ .rodata.g_msg  0x800001d0       0x17 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+                0x800001e8                        . = ALIGN (0x4)
+ *fill*         0x800001e7        0x1 
+
+.rela.dyn       0x800001e8        0x0
+ .rela.text.startup
+                0x800001e8        0x0 C:\Users\ZY\AppData\Local\Temp\ccQxDacH.o
+
+.data           0x80100000        0x0
+                0x80100000                        . = ALIGN (0x4)
+ *(.sdata)
+ *(.sdata.*)
+ *(.data)
+ *(.data.*)
+                0x80100000                        . = ALIGN (0x4)
+
+.bss            0x80100000        0x8
+                0x80100000                        . = ALIGN (0x4)
+                0x80100000                        __bss_start = .
+ *(.sbss)
+ *(.sbss.*)
+ *(.bss)
+ *(.bss.*)
+ .bss.g_tx_done
+                0x80100000        0x4 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ .bss.g_tx_idx  0x80100004        0x4 C:\Users\ZY\AppData\Local\Temp\ccqQ9JHu.o
+ *(COMMON)
+                0x80100008                        . = ALIGN (0x4)
+                0x80100008                        __bss_end = .
+
+/DISCARD/
+ *(.comment)
+ *(.riscv.attributes)
+ *(.note*)
+ *(.eh_frame*)
+OUTPUT(F:\riscv-gcc\build\uart_tx_irq\uart_tx_irq.elf elf32-littleriscv)
