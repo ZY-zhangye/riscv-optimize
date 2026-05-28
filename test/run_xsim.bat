@@ -64,12 +64,10 @@ call xvlog --sv -i "%RTL_CPU%" -i "%RTL_SOC%" -i "%IP_ROOT%\ipstatic" ^
     "%RTL_CPU%\cpu_top.sv" ^
     "%RTL_CPU%\divider.sv" ^
     "%RTL_CPU%\exe_stage.sv" ^
-    "%RTL_CPU%\fpu.sv" ^
     "%RTL_CPU%\id_stage.sv" ^
     "%RTL_CPU%\if_stage.sv" ^
     "%RTL_CPU%\mem_stage.sv" ^
     "%RTL_CPU%\mul.sv" ^
-    "%RTL_CPU%\reg_fpu.sv" ^
     "%RTL_CPU%\regfile_csr.sv" ^
     "%RTL_CPU%\regfiles.sv" ^
     "%RTL_CPU%\wb_stage.sv" ^

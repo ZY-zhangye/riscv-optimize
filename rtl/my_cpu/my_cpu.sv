@@ -21,7 +21,6 @@ module my_cpu #(
     output logic [4:0]  debug_wb_rf_addr,
     output logic [31:0] debug_wb_rf_data,
     output logic        debug_wb_rf_wen,
-    output logic        debug_wb_fpu_rf_wen,
     output logic [31:0] debug_data
     `endif
 );
@@ -107,7 +106,6 @@ module my_cpu #(
         .debug_wb_rf_addr(debug_wb_rf_addr),
         .debug_wb_rf_data(debug_wb_rf_data),
         .debug_wb_rf_wen(debug_wb_rf_wen),
-        .debug_wb_fpu_rf_wen(debug_wb_fpu_rf_wen),
         .debug_data(debug_data)
         `endif
     );

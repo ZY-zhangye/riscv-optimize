@@ -9,7 +9,6 @@ module wb_stage (
     output logic ws_allowin,
     //送到寄存器堆的信息
     output logic regfile_wen,
-    output logic reg_fpu_wen,
     output logic [4:0] regfile_addr,
     output logic [31:0] regfile_wdata
     //debug接口
@@ -18,8 +17,7 @@ module wb_stage (
     output logic [31:0] debug_wb_pc,
     output logic [4:0] debug_wb_rf_addr,
     output logic [31:0] debug_wb_rf_data,
-    output logic debug_wb_rf_wen,
-    output logic debug_wb_fpu_rf_wen
+    output logic debug_wb_rf_wen
     `endif
 );
 
@@ -49,10 +47,8 @@ module wb_stage (
     logic [4:0] wb_dst_addr;
     logic [31:0] wb_pc;
     logic wb_regfile_wen;
-    logic wb_fpu_regfile_wen;
-    assign {wb_pc, wb_result, wb_dst_addr, wb_regfile_wen, wb_fpu_regfile_wen} = ms_ws_bus_r;
+    assign {wb_pc, wb_result, wb_dst_addr, wb_regfile_wen} = ms_ws_bus_r;
     assign regfile_wen = wb_regfile_wen;
-    assign reg_fpu_wen = wb_fpu_regfile_wen;
     assign regfile_addr = wb_dst_addr;
     assign regfile_wdata = wb_result;
     `ifdef DEBUG_EN
@@ -60,7 +56,6 @@ module wb_stage (
     assign debug_wb_rf_addr = wb_dst_addr;
     assign debug_wb_rf_data = wb_result;
     assign debug_wb_rf_wen = wb_regfile_wen;
-    assign debug_wb_fpu_rf_wen = wb_fpu_regfile_wen;
     `endif
 
 endmodule

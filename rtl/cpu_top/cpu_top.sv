@@ -21,7 +21,6 @@ module cpu_top (
     output logic [4:0] debug_wb_rf_addr,
     output logic [31:0] debug_wb_rf_data,
     output logic debug_wb_rf_wen,
-    output logic debug_wb_fpu_rf_wen,
     output logic [31:0] debug_data
     `endif
 );
@@ -49,12 +48,6 @@ module cpu_top (
     logic [4:0] rs2_addr;
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
-    logic [4:0] rs1_fpu_addr;
-    logic [4:0] rs2_fpu_addr;
-    logic [4:0] rs3_fpu_addr;
-    logic rs3_fpu_ren;
-    logic [31:0] rs1_fpu_data;
-    logic [31:0] rs2_fpu_data;
     logic [11:0] csr_addr;
     logic [31:0] csr_data;
     logic ds_to_es_valid;
@@ -62,17 +55,14 @@ module cpu_top (
     logic ds_flush;
     logic [`DS_ES_WIDTH-1:0] ds_to_es_bus;
     logic regfile_wen;
-    logic reg_fpu_wen;
     logic [4:0] regfile_waddr;
     logic [`DATA_WIDTH-1:0] regfile_wdata;
     logic [4:0] exe_dest_addr;
     logic exe_regfile_wen;
-    logic exe_reg_fpu_wen;
     logic [11:0] exe_csr_addr;
     logic exe_csr_wen;
     logic [4:0] mem_dest_addr;
     logic mem_regfile_wen;
-    logic mem_reg_fpu_wen;
     logic [`EXC_WIDTH-1:0] ds_exc_bus;
 
     //连接es模块
@@ -82,7 +72,6 @@ module cpu_top (
     logic [`ES_MS_WIDTH-1:0] es_to_ms_bus;
     logic es_flush;
     logic [31:0] mem_result;
-    logic [31:0] reg_fpu_data3;
     logic [`EXE_EXC_BUS - 1:0] exe_exc_bus;
 
     //连接ms模块
@@ -137,12 +126,6 @@ module cpu_top (
         .rs2_addr(rs2_addr),
         .rs1_data(rs1_data),
         .rs2_data(rs2_data),
-        .rs1_fpu_addr(rs1_fpu_addr),
-        .rs2_fpu_addr(rs2_fpu_addr),
-        .rs3_fpu_addr(rs3_fpu_addr),
-        .rs3_fpu_ren(rs3_fpu_ren),
-        .rs1_fpu_data(rs1_fpu_data),
-        .rs2_fpu_data(rs2_fpu_data),
         .csr_addr(csr_addr),
         .csr_data(csr_data),
         .ds_to_es_valid(ds_to_es_valid),
@@ -150,18 +133,15 @@ module cpu_top (
         .ds_flush(ds_flush),
         .ds_to_es_bus(ds_to_es_bus),
         .regfile_wen(regfile_wen),
-        .reg_fpu_wen(reg_fpu_wen),
         .regfile_waddr(regfile_waddr),
         .regfile_wdata(regfile_wdata),
         .exe_dest_addr(exe_dest_addr),
         .exe_regfile_wen(exe_regfile_wen),
-        .exe_reg_fpu_wen(exe_reg_fpu_wen),
         .exe_csr_addr(exe_csr_addr),
         .exe_csr_wen(exe_csr_wen),
         .es_valid(es_valid),
         .mem_dest_addr(mem_dest_addr),
         .mem_regfile_wen(mem_regfile_wen),
-        .mem_reg_fpu_wen(mem_reg_fpu_wen),
         .ms_valid(ms_valid),
         .br_taken(br_redirect),
         .exception_flag(exception_flag),
@@ -187,7 +167,6 @@ module cpu_top (
         .dmem_wdata(dmem_wdata),
         .exe_dest_addr(exe_dest_addr),
         .exe_regfile_wen(exe_regfile_wen),
-        .exe_reg_fpu_wen(exe_reg_fpu_wen),
         .exe_csr_addr(exe_csr_addr),
         .exe_csr_wen(exe_csr_wen),
         .es_valid(es_valid),
@@ -208,7 +187,6 @@ module cpu_top (
         .perf_bp_miss(perf_bp_miss),
         .perf_ex_stall(perf_ex_stall),
         .mem_result(mem_result),
-        .reg_fpu_data3(reg_fpu_data3),
         .exe_exc_bus(exe_exc_bus)
     );
 
@@ -225,7 +203,6 @@ module cpu_top (
         .dmem_rdata(dmem_rdata),
         .mem_dst_addr(mem_dest_addr),
         .mem_regfile_wen(mem_regfile_wen),
-        .mem_reg_fpu_wen(mem_reg_fpu_wen),
         .mem_result(mem_result),
         .ms_valid(ms_valid),
         .exception_flag(exception_flag),
@@ -247,7 +224,6 @@ module cpu_top (
         .ms_to_ws_valid(ms_to_ws_valid),
         .ws_allowin(ws_allowin),
         .regfile_wen(regfile_wen),
-        .reg_fpu_wen(reg_fpu_wen),
         .regfile_addr(regfile_waddr),
         .regfile_wdata(regfile_wdata)
         `ifdef DEBUG_EN
@@ -255,8 +231,7 @@ module cpu_top (
         .debug_wb_pc(debug_wb_pc),
         .debug_wb_rf_addr(debug_wb_rf_addr),
         .debug_wb_rf_data(debug_wb_rf_data),
-        .debug_wb_rf_wen(debug_wb_rf_wen),
-        .debug_wb_fpu_rf_wen(debug_wb_fpu_rf_wen)
+        .debug_wb_rf_wen(debug_wb_rf_wen)
         `endif
     );
 
@@ -276,20 +251,6 @@ module cpu_top (
         `endif
     );
 
-    reg_fpu u_reg_fpu (
-        .clk(clk),
-        .rst_n(rst_n),
-        .reg_fpu_wen(reg_fpu_wen),
-        .reg_fpu_waddr(regfile_waddr),
-        .reg_fpu_wdata(regfile_wdata),
-        .reg_fpu_raddr1(rs1_fpu_addr),
-        .reg_fpu_rdata1(rs1_fpu_data),
-        .reg_fpu_raddr2(rs2_fpu_addr),
-        .reg_fpu_rdata2(rs2_fpu_data),
-        .rs3_fpu_ren(rs3_fpu_ren),
-        .reg_fpu_raddr3(rs3_fpu_addr),
-        .reg_fpu_rdata3(reg_fpu_data3)
-    );
 
     regfile_csr u_regfile_csr (
         .clk(clk),

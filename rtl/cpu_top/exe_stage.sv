@@ -15,8 +15,6 @@ module exe_stage(
     output logic es_flush,
     //mem阶段数据前递接口
     input logic [31:0] mem_result,
-    //reg_fpu数据3接口，仅在部分情况使用
-    input logic [31:0] reg_fpu_data3,
     //DMEM接口
     output logic [31:0] dmem_addr,
     output logic [31:0] dmem_wdata,
@@ -25,7 +23,6 @@ module exe_stage(
     //数据前递接口-仅地址
     output logic [4:0] exe_dest_addr,
     output logic exe_regfile_wen,
-    output logic exe_reg_fpu_wen,
     output logic [11:0] exe_csr_addr,
     output logic exe_csr_wen,
     output logic es_valid,
@@ -52,8 +49,7 @@ module exe_stage(
 
     logic es_ready_go;
     logic mul_stall;
-    logic fpu_stall;
-    assign es_ready_go = !mul_stall && !fpu_stall;
+    assign es_ready_go = !mul_stall;
     assign es_allowin = !es_valid || es_ready_go && ms_allowin;
     assign es_to_ms_valid = es_valid && es_ready_go;
     always_ff @(posedge clk) begin
@@ -71,8 +67,8 @@ module exe_stage(
     logic [31:0] csr_wdata;
     logic [31:0] csr_wdata_reg;
     logic [31:0] mem_result_reg;
-    logic [31:0] exe_result_reg; 
-    logic [`EXC_WIDTH-1:0] ds_exc_bus_r;  
+    logic [31:0] exe_result_reg;
+    logic [`EXC_WIDTH-1:0] ds_exc_bus_r;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             ds_to_es_bus_r <= '0;
@@ -101,12 +97,12 @@ module exe_stage(
         end
     end
     assign es_flush = rst_n && (ds_flush_r || exception_flag);
+
     //一级解包
     `ifdef Z_BITMAIN_ENABLE
         logic [`BITMAN_PACKET_WIDTH-1:0] bitman_packet;
     `endif
     logic [`ALU_PACKET_WIDTH-1:0] alu_packet;
-    logic [`FPU_PACKET_WIDTH-1:0] fpu_packet;
     logic [`MUL_PACKET_WIDTH-1:0] mul_packet;
     logic [`MEM_PACKET_WIDTH-1:0] mem_packet;
     logic [`CSR_PACKET_WIDTH-1:0] csr_packet;
@@ -114,10 +110,11 @@ module exe_stage(
     logic [`CTRL_PACKET_WIDTH-1:0] ctrl_packet;
     logic [`SRC_PACKET_WIDTH-1:0] src_packet;
     `ifdef Z_BITMAIN_ENABLE
-        assign {bitman_packet, alu_packet, fpu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet} = ds_to_es_bus_r;
+        assign {bitman_packet, alu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet} = ds_to_es_bus_r;
     `else
-        assign {alu_packet, fpu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet} = ds_to_es_bus_r;
+        assign {alu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet} = ds_to_es_bus_r;
     `endif
+
     //二级解包
     //BITMAN_PACKET解包
     `ifdef Z_BITMAIN_ENABLE
@@ -127,14 +124,6 @@ module exe_stage(
     //ALU_PACKET解包
     logic [9:0] alu_op;
     assign alu_op = alu_packet[9:0];
-    //FPU_PACKET解包
-    logic [31:0] fpu_src1, fpu_src2;
-    logic [25:0] fpu_op;
-    logic [2:0] rm;
-    logic [1:0] fpu_src1_fwd;
-    logic [1:0] fpu_src2_fwd;
-    logic [1:0] fpu_src3_fwd;
-    assign {fpu_op, rm, fpu_src1_fwd, fpu_src2_fwd, fpu_src3_fwd, fpu_src1, fpu_src2} = fpu_packet;
     //MUL_PACKET解包
     logic [3:0] mul_op;
     logic src1_signed, src2_signed;
@@ -163,14 +152,17 @@ module exe_stage(
     logic [31:0] bp_pred_target;
     assign {bp_pred_hit, bp_pred_taken, bp_pred_target, br_jmp_target, br_jmp_imm, br_jmp_opcode, is_jal, is_jalr} = br_jmp_packet;
     //CTRL_PACKET解包
-    logic is_alu, is_fpu, is_mul, is_mem, is_csr, is_br_jmp , is_bitman;
+    logic is_alu, is_mul, is_mem, is_csr, is_br_jmp , is_bitman;
     logic [4:0] rd_addr;
     logic regfile_wen;
-    logic reg_fpu_wen;
     logic is_multicycle;
     logic [1:0] exe_result_sel;
     logic [31:0] exe_pc;
-    assign {exe_pc, exe_result_sel,is_bitman, is_alu, is_fpu, is_mul, is_mem, is_csr, is_br_jmp, rd_addr, regfile_wen, reg_fpu_wen, is_multicycle} = ctrl_packet;
+    `ifdef Z_BITMAIN_ENABLE
+    assign {exe_pc, exe_result_sel, is_bitman, is_alu, is_mul, is_mem, is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
+    `else
+    assign {exe_pc, exe_result_sel, is_alu, is_mul, is_mem, is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
+    `endif
     //SRC_PACKET解包
     logic [31:0] reg_src1;
     logic [31:0] reg_src2;
@@ -178,7 +170,7 @@ module exe_stage(
     logic [1:0] src2_fwd;
     assign {reg_src1, reg_src2, src1_fwd, src2_fwd} = src_packet;
 
-    //操作数选择（除FPU，其它都在这里完成）
+    //操作数选择
     logic [31:0] src1, src2;
     logic [31:0] csr_data;
     always_comb begin
@@ -197,13 +189,6 @@ module exe_stage(
             default: src2 = reg_src2;
         endcase
     end
-    /*
-    assign src1 = (src1_fwd == 2'b01) ? exe_result_reg :
-                  (src1_fwd == 2'b10) ? mem_result_reg :
-                  reg_src1;
-    assign src2 = (src2_fwd == 2'b01) ? exe_result_reg :
-                  (src2_fwd == 2'b10) ? mem_result_reg :
-                  reg_src2;*/
     assign csr_data = csr_rdata_fwd ? csr_wdata_reg : csr_rdata;
 
     //BITMAN计算
@@ -289,7 +274,6 @@ module exe_stage(
             endcase
         end
     `else
-        //如果不启用Z-bitman，bitman_result直接为0，不参与后续计算
         logic [31:0] bitman_result;
         assign bitman_result = 32'b0;
     `endif
@@ -328,34 +312,8 @@ module exe_stage(
         .mul_stall(mul_stall)
     );
 
-    //FPU计算
-    logic [31:0] fpu_result;
-    logic [31:0] src1_fpu, src2_fpu, src3_fpu;
-    assign src1_fpu = (fpu_src1_fwd == 2'b01) ? exe_result_reg :
-                      (fpu_src1_fwd == 2'b10) ? mem_result_reg :
-                      fpu_src1;
-    assign src2_fpu = (fpu_src2_fwd == 2'b01) ? exe_result_reg :
-                      (fpu_src2_fwd == 2'b10) ? mem_result_reg :
-                      fpu_src2;
-    assign src3_fpu = (fpu_src3_fwd == 2'b01) ? exe_result_reg :
-                      (fpu_src3_fwd == 2'b10) ? mem_result_reg :
-                      reg_fpu_data3;
-    fpu u_fpu (
-        .clk(clk),
-        .rst_n(rst_n),
-        .is_fpu(is_fpu),
-        .is_multicycle(is_multicycle),
-        .fpu_op(fpu_op),
-        .rm(rm),
-        .fpu_src1(src1_fpu),
-        .fpu_src2(src2_fpu),
-        .fpu_src3(src3_fpu),
-        .fpu_result(fpu_result),
-        .fpu_stall(fpu_stall)
-    );
-
     //MEM访问
-    logic inst_lb, inst_sb, inst_lh, inst_sh, inst_lw, inst_sw,inst_lbu, inst_lhu;
+    logic inst_lb, inst_sb, inst_lh, inst_sh, inst_lw, inst_sw, inst_lbu, inst_lhu;
     logic [5:0] load_inst;
     assign load_inst = {(inst_lb || inst_sb), (inst_lh || inst_sh), (inst_lw || inst_sw), inst_lbu, inst_lhu, is_store};
     assign inst_lb  = mem_op[4] & ~is_store;
@@ -416,7 +374,7 @@ module exe_stage(
                        inst_csrrsi ? (csr_data | csr_imm) :
                        inst_csrrci ? (csr_data & ~csr_imm) :
                        32'b0;
-    
+
     //BR/JMP计算
     logic is_beq, is_bne, is_blt, is_bge, is_bltu, is_bgeu;
     assign is_beq = br_jmp_opcode[5];
@@ -425,19 +383,14 @@ module exe_stage(
     assign is_bge = br_jmp_opcode[2];
     assign is_bltu= br_jmp_opcode[1];
     assign is_bgeu= br_jmp_opcode[0];
-    // 1. 预计算减法和标志位 (FPGA 会将其映射到进位链)
     logic [32:0] sub_res;
     assign sub_res = {1'b0, src1} - {1'b0, src2};
 
     logic eq, lt, ltu;
-    assign eq  = (src1 == src2); // 部分综合器对 == 0 优化更好，但直接比较通常也能进位链优化
-    assign ltu = sub_res[32];    // 无符号小于即看减法的借位
-
-    // 有符号小于：如果符号不同，则 src1负数时为真；如果符号相同，看减法结果
+    assign eq  = (src1 == src2);
+    assign ltu = sub_res[32];
     assign lt  = (src1[31] != src2[31]) ? src1[31] : ltu;
 
-    // 2. 并行选择逻辑 (代替 case(1'b1))
-    // 这种写法在 FPGA 中会被优化为单层 LUT 逻辑
     logic br_cond_raw;
     assign br_cond_raw = (is_beq  & eq)
                        | (is_bne  & !eq)
@@ -446,15 +399,11 @@ module exe_stage(
                        | (is_bltu & ltu)
                        | (is_bgeu & !ltu);
 
-    // 3. 优化 br_taken 的判定路径
-    // 将 br_jmp_opcode 是否有效的判断与 br_cond 合并
     logic is_branch;
     assign is_branch = |br_jmp_opcode;
 
     assign br_taken = es_flush ? 1'b0 : (is_jal | is_jalr | (is_branch & br_cond_raw));
 
-    // 4. 计算目标地址
-    // JALR 的掩码操作直接在加法后进行位截断，保持路径简洁
     logic [31:0] jalr_sum;
     logic [31:0] pc_jalr;
     assign jalr_sum = src1 + br_jmp_imm;
@@ -476,6 +425,7 @@ module exe_stage(
     assign perf_bp_hit = bp_update_valid && !is_jalr && bp_pred_hit;
     assign perf_bp_miss = bp_update_valid && !is_jalr && !bp_pred_hit;
     assign perf_ex_stall = es_valid && !es_ready_go && !es_flush;
+
     //结果选择
     always_comb begin
         exe_result = 32'b0;
@@ -483,11 +433,10 @@ module exe_stage(
             unique case (1'b1)
                 is_bitman: exe_result = bitman_result;
                 is_alu: exe_result = alu_result;
-                is_fpu: exe_result = fpu_result;
                 is_mem: exe_result = dmem_addr;
                 is_mul: exe_result = mul_result;
                 is_csr: exe_result = csr_data;
-                default: exe_result = exe_pc + 4; //默认写回PC+4，方便调试和实现JAL/JALR
+                default: exe_result = exe_pc + 4;
             endcase
         end
     end
@@ -495,24 +444,21 @@ module exe_stage(
     //数据前递接口
     assign exe_dest_addr = rd_addr;
     assign exe_regfile_wen = regfile_wen && !es_flush;
-    assign exe_reg_fpu_wen = reg_fpu_wen && !es_flush;
 
     //输出到下一级
     assign es_to_ms_bus = {
         exe_pc,     //32
         exe_result, //32
         load_inst,  //6
-        rd_addr,
-        regfile_wen,
-        reg_fpu_wen,
-        exe_result_sel,
-        exe_csr_wen,
-        exe_csr_addr,
-        csr_wdata
+        rd_addr,    //5
+        regfile_wen,//1
+        exe_result_sel, //2
+        exe_csr_wen,    //1
+        exe_csr_addr,   //12
+        csr_wdata       //32
     };
 
     //异常接口
-    //exe阶段产生的异常均为地址非对齐异常，由于exe阶段时序压力，故不在此做处理，而是传递给mem阶段处理
     logic [32:0] br_bus;
     assign br_bus = {br_taken, br_target};
     assign exe_exc_bus = {br_bus, ds_exc_bus_r};

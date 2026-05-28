@@ -18,7 +18,6 @@ module mem_stage (
     //数据前递接口
     output logic [4:0] mem_dst_addr,
     output logic mem_regfile_wen,
-    output logic mem_reg_fpu_wen,
     output logic [31:0] mem_result,
     //异常信息接口
     input logic exception_flag,
@@ -71,7 +70,6 @@ module mem_stage (
     logic [5:0] load_inst;
     logic [4:0] rd_addr;
     logic regfile_wen;
-    logic reg_fpu_wen;
     logic [1:0] wb_sel;
     logic csr_wen;
     logic [11:0] csr_addr;
@@ -82,7 +80,6 @@ module mem_stage (
         load_inst,
         rd_addr,
         regfile_wen,
-        reg_fpu_wen,
         wb_sel,
         csr_wen,
         csr_addr,
@@ -157,7 +154,6 @@ end
                          ({32{~wb_sel[1]}} & load_data);
     assign mem_dst_addr = rd_addr;
     assign mem_regfile_wen = regfile_wen && !ms_flush && !exception_flag;
-    assign mem_reg_fpu_wen = reg_fpu_wen && !ms_flush && !exception_flag;
     assign csr_we = csr_wen & ~ms_flush & ~exception_code[5];
     assign csr_waddr = csr_addr;
     assign csr_wdata = exception_code[5] ? mem_pc : csr_data; //当发生异常时将当前指令地址写入CSR寄存器，而不是正常的CSR写数据
@@ -165,8 +161,7 @@ end
         mem_pc,
         mem_result,
         rd_addr,
-        mem_regfile_wen,
-        mem_reg_fpu_wen
+        mem_regfile_wen
     };
     //异常相关信息
     //解包异常信息包

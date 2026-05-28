@@ -1,0 +1,27 @@
+# Vivado / XSim artifacts
+xsim.dir/
+xvlog.log
+xvlog.pb
+*.jou
+xelab.log
+xelab.pb
+webtalk*.log
+webtalk*.jou
+results/
+
+# Xilinx IP generated files
+*.dcp
+*.cache/
+*.runs/
+*.sim/
+*.gen/
+*.ip_user_files/
+
+# Project files
+*.xpr
+*.str
+
+# Backup files
+*.orig
+*.bak
+*~
