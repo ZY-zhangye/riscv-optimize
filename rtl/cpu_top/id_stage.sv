@@ -108,15 +108,27 @@ module id_stage (
 
     // ============================================================
     // Flush logic
+    // Latch flush when instruction enters ID so it follows the instruction
+    // to EX even if the external flush signal drops (critical with queue).
     // ============================================================
-    always_comb begin
-        if (!rst_n)
-            ds_flush = 1'b0;
-        else if (exception_flag || br_taken)
-            ds_flush = 1'b1;
-        else
-            ds_flush = 1'b0;
+    logic ds_flush_latched;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            ds_flush_latched <= 1'b0;
+        end else if (fs_to_ds_valid && ds_allowin) begin
+            // New instruction entering ID: capture current flush state
+            ds_flush_latched <= exception_flag || br_taken;
+        end else if (ds_valid && (exception_flag || br_taken)) begin
+            // Instruction stalled in ID when flush arrives: hold it
+            ds_flush_latched <= 1'b1;
+        end else if (!ds_valid) begin
+            ds_flush_latched <= 1'b0;
+        end
     end
+
+    logic ds_flush_comb;
+    assign ds_flush_comb = exception_flag || br_taken;
+    assign ds_flush = ds_flush_comb || ds_flush_latched;
 
     // ---- Unpack fs_to_ds_bus ----
     logic [`ADDR_WIDTH-1:0] id_pc;
