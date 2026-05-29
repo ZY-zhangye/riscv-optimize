@@ -29,10 +29,13 @@ $rtl_soc = "rtl\my_cpu"
 $sv_files = @(
     "$rtl_cpu\defines.svh",
     "$rtl_cpu\alu_wrapper.sv",
+    "$rtl_cpu\branch_controller.sv",
     "$rtl_cpu\cpu_top.sv",
+    "$rtl_cpu\decode_unit.sv",
     "$rtl_cpu\divider.sv",
     "$rtl_cpu\exe_stage.sv",
     "$rtl_cpu\forwarding_unit.sv",
+    "$rtl_cpu\hazard_unit.sv",
     "$rtl_cpu\id_stage.sv",
     "$rtl_cpu\if_stage.sv",
     "$rtl_cpu\mem_stage.sv",

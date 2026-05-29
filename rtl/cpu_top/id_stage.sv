@@ -41,24 +41,27 @@ module id_stage (
     output logic perf_load_use_stall
 );
 
+    // ============================================================
+    // Pipeline control (unchanged)
+    // ============================================================
     logic ds_valid;
     logic ds_ready_go;
     logic load_use_hazard;
     assign ds_ready_go = !load_use_hazard;
-    assign ds_allowin = !ds_valid || ds_ready_go && es_allowin;
+    assign ds_allowin = !ds_valid || (ds_ready_go && es_allowin);
     assign ds_to_es_valid = ds_valid && ds_ready_go;
-    //握手协议
+
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             ds_valid <= 1'b0;
         end else if (ds_allowin) begin
             ds_valid <= fs_to_ds_valid;
-        end else begin
-            ds_valid <= ds_valid;
         end
     end
 
-    //锁存数据
+    // ============================================================
+    // Data latching
+    // ============================================================
     logic [`FS_DS_WIDTH-1:0] fs_to_ds_bus_r;
     logic [`EXC_WIDTH-1:0] fs_exc_bus_r;
     always_ff @(posedge clk) begin
@@ -68,23 +71,22 @@ module id_stage (
         end else if (fs_to_ds_valid && ds_allowin) begin
             fs_to_ds_bus_r <= fs_to_ds_bus;
             fs_exc_bus_r <= fs_exc_bus;
-        end else begin
-            fs_to_ds_bus_r <= fs_to_ds_bus_r;
-            fs_exc_bus_r <= fs_exc_bus_r;
-        end
-    end
-    always_comb begin
-        if (!rst_n) begin
-            ds_flush = 1'b0;
-        end else begin
-            if (exception_flag || br_taken) begin
-                ds_flush <= 1'b1;
-            end else begin
-                ds_flush <= 1'b0;
-            end
         end
     end
 
+    // ============================================================
+    // Flush logic
+    // ============================================================
+    always_comb begin
+        if (!rst_n)
+            ds_flush = 1'b0;
+        else if (exception_flag || br_taken)
+            ds_flush = 1'b1;
+        else
+            ds_flush = 1'b0;
+    end
+
+    // ---- Unpack fs_to_ds_bus ----
     logic [`ADDR_WIDTH-1:0] id_pc;
     logic [`DATA_WIDTH-1:0] id_inst;
     logic bp_pred_hit;
@@ -92,241 +94,84 @@ module id_stage (
     logic [`ADDR_WIDTH-1:0] bp_pred_target;
     assign {id_inst, id_pc, bp_pred_hit, bp_pred_taken, bp_pred_target} = fs_to_ds_bus_r;
 
-    //译码逻辑
-    logic [6:0] opcode;
-    logic [2:0] funct3;
-    logic [6:0] funct7;
-    assign opcode = id_inst[6:0];
-    assign funct3 = id_inst[14:12];
-    assign funct7 = id_inst[31:25];
-    assign rs1_addr = id_inst[19:15];
-    assign rs2_addr = id_inst[24:20];
-    assign csr_addr = id_inst[31:20];
-    logic [4:0] rd_addr;
-    assign rd_addr = id_inst[11:7];
+    // ============================================================
+    // Decode unit — pure combinational instruction decode
+    // ============================================================
+    logic [4:0]  rd_addr;
+    logic [11:0] csr_addr_int;
+    logic [31:0] imm_i_ext, imm_s_ext, imm_b_ext, imm_u_ext, imm_j_ext, imm_z_ext;
+    logic IMI_valid, IMS_valid, IMB_valid, IMU_valid, IMJ_valid, IMZ_valid;
+    logic [`ALU_PACKET_WIDTH-1:0]   alu_packet;
+    logic [`MUL_PACKET_WIDTH-1:0]   mul_packet;
+    logic [`MEM_PACKET_WIDTH-1:0]   mem_packet;
+    logic [`CSR_PACKET_WIDTH-1:0]   csr_packet;
+    logic [`BR_JMP_PACKET_WIDTH-1:0] br_jmp_packet;
+    logic [`CTRL_PACKET_WIDTH-1:0]  ctrl_packet;
+    logic need_rs1, need_rs2;
+    logic is_load;
+    logic alu_src2_imm_sel;
+    logic inst_lui, inst_auipc;
+    logic inst_bitman_imm_inst, inst_bitman_any, inst_bitman_rs2_inst;
+    logic inst_ecall, inst_ebreak, inst_mret;
 
-    logic [11:0] imm_i;
-    logic [11:0] imm_s;
-    logic [12:0] imm_b;
-    logic [19:0] imm_u;
-    logic [20:0] imm_j;
-    logic [4:0] imm_z;
-    assign imm_i = id_inst[31:20];
-    assign imm_s = {id_inst[31:25], id_inst[11:7]};
-    assign imm_b = {id_inst[31], id_inst[7], id_inst[30:25], id_inst[11:8], 1'b0};
-    assign imm_u = id_inst[31:12];
-    assign imm_j = {id_inst[31], id_inst[19:12], id_inst[20], id_inst[30:21], 1'b0};
-    assign imm_z = id_inst[19:15];
-
-    logic [31:0] imm_i_ext , imm_s_ext , imm_b_ext , imm_u_ext , imm_j_ext , imm_z_ext;
-    assign imm_i_ext = {{20{imm_i[11]}}, imm_i};
-    assign imm_s_ext = {{20{imm_s[11]}}, imm_s};
-    assign imm_b_ext = {{19{imm_b[12]}}, imm_b};
-    assign imm_u_ext = {imm_u, 12'b0};
-    assign imm_j_ext = {{11{imm_j[20]}}, imm_j};
-    assign imm_z_ext = {{27{1'b0}}, imm_z};
-
-    //指令定义
-    logic is_load , is_store , is_branch , is_jal , is_jalr , is_op_imm , is_op_reg , is_lui , is_auipc , is_system , is_fence ;
-    assign is_load   = (opcode == 7'b0000011);
-    assign is_store  = (opcode == 7'b0100011);
-    assign is_branch = (opcode == 7'b1100011);
-    assign is_jal    = (opcode == 7'b1101111);
-    assign is_jalr   = (opcode == 7'b1100111);
-    assign is_op_imm = (opcode == 7'b0010011);
-    assign is_op_reg = (opcode == 7'b0110011);
-    assign is_lui    = (opcode == 7'b0110111);
-    assign is_auipc  = (opcode == 7'b0010111);
-    assign is_system = (opcode == 7'b1110011);
-    assign is_fence  = (opcode == 7'b0001111);
-
-    logic f3_000 , f3_001 , f3_010 , f3_011 , f3_100 , f3_101 , f3_110 , f3_111 ;
-    assign f3_000 = (funct3 == 3'b000);
-    assign f3_001 = (funct3 == 3'b001);
-    assign f3_010 = (funct3 == 3'b010);
-    assign f3_011 = (funct3 == 3'b011);
-    assign f3_100 = (funct3 == 3'b100);
-    assign f3_101 = (funct3 == 3'b101);
-    assign f3_110 = (funct3 == 3'b110);
-    assign f3_111 = (funct3 == 3'b111);
-
-    logic f7_0000000 , f7_0100000 , f7_0000001 , f7_0011000 ;
-    assign f7_0000000 = (funct7 == 7'b0000000);
-    assign f7_0100000 = (funct7 == 7'b0100000);
-    assign f7_0000001 = (funct7 == 7'b0000001);
-    assign f7_0011000 = (funct7 == 7'b0011000);
-
-    //Z-bitman指令
     `ifdef Z_BITMAIN_ENABLE
-    logic is_bitman;
-    logic is_bitman_imm;
-    assign is_bitman = (opcode == 7'b0110011);
-    assign is_bitman_imm = (opcode == 7'b0010011);
-    //定义Z-bitman指令
-    logic inst_sh1add, inst_sh2add, inst_sh3add;
-    logic inst_andn, inst_orn, inst_xnor;
-    logic inst_min, inst_max, inst_minu, inst_maxu;
-    logic inst_sextb, inst_sexth, inst_zexth;
-    logic inst_orcb, inst_rev8, inst_brev8, inst_pack, inst_packh, inst_zip, inst_unzip;
-    logic inst_bclr, inst_bclri, inst_bext, inst_bexti, inst_binv, inst_binvi, inst_bset, inst_bseti;
-    logic inst_bitman_any;
-    logic inst_bitman_imm_inst;
-    logic inst_bitman_rs2_inst;
-    logic [`BITMAN_OP_WIDTH-1:0] bitman_op;
     logic [`BITMAN_PACKET_WIDTH-1:0] bitman_packet;
-
-    assign inst_sh1add = is_bitman && f3_010 && (id_inst[31:25] == 7'b0010000);
-    assign inst_sh2add = is_bitman && f3_100 && (id_inst[31:25] == 7'b0010000);
-    assign inst_sh3add = is_bitman && f3_110 && (id_inst[31:25] == 7'b0010000);
-
-    assign inst_andn = is_bitman && f3_111 && (id_inst[31:25] == 7'b0100000);
-    assign inst_orn  = is_bitman && f3_110 && (id_inst[31:25] == 7'b0100000);
-    assign inst_xnor = is_bitman && f3_100 && (id_inst[31:25] == 7'b0100000);
-
-    assign inst_max  = is_bitman && f3_110 && (id_inst[31:25] == 7'b0000101);
-    assign inst_maxu = is_bitman && f3_111 && (id_inst[31:25] == 7'b0000101);
-    assign inst_min  = is_bitman && f3_100 && (id_inst[31:25] == 7'b0000101);
-    assign inst_minu = is_bitman && f3_101 && (id_inst[31:25] == 7'b0000101);
-
-    assign inst_sextb = is_bitman_imm && f3_001 && (id_inst[31:20] == 12'h604);
-    assign inst_sexth = is_bitman_imm && f3_001 && (id_inst[31:20] == 12'h605);
-    assign inst_zexth = is_bitman && f3_100 && (id_inst[31:25] == 7'b0000100) && (id_inst[24:20] == 5'b00000);
-
-    assign inst_orcb  = is_bitman_imm && f3_101 && (id_inst[31:20] == 12'h287);
-    assign inst_rev8  = is_bitman_imm && f3_101 && (id_inst[31:20] == 12'h698);
-    assign inst_brev8 = is_bitman_imm && f3_101 && (id_inst[31:20] == 12'h687);
-    assign inst_pack  = is_bitman && f3_100 && (id_inst[31:25] == 7'b0000100) && (id_inst[24:20] != 5'b00000);
-    assign inst_packh = is_bitman && f3_111 && (id_inst[31:25] == 7'b0000100);
-    assign inst_zip   = is_bitman_imm && f3_001 && (id_inst[31:25] == 7'b0000100) && (id_inst[24:20] == 5'b01111);
-    assign inst_unzip = is_bitman_imm && f3_101 && (id_inst[31:25] == 7'b0000100) && (id_inst[24:20] == 5'b01111);
-
-    assign inst_bclr  = is_bitman && f3_001 && (id_inst[31:25] == 7'b0100100);
-    assign inst_bclri = is_bitman_imm && f3_001 && (id_inst[31:25] == 7'b0100100);
-    assign inst_bext  = is_bitman && f3_101 && (id_inst[31:25] == 7'b0100100);
-    assign inst_bexti = is_bitman_imm && f3_101 && (id_inst[31:25] == 7'b0100100);
-    assign inst_binv  = is_bitman && f3_001 && (id_inst[31:25] == 7'b0110100);
-    assign inst_binvi = is_bitman_imm && f3_001 && (id_inst[31:25] == 7'b0110100);
-    assign inst_bset  = is_bitman && f3_001 && (id_inst[31:25] == 7'b0010100);
-    assign inst_bseti = is_bitman_imm && f3_001 && (id_inst[31:25] == 7'b0010100);
-
-    assign inst_bitman_any = inst_sh1add || inst_sh2add || inst_sh3add ||
-                             inst_andn || inst_orn || inst_xnor ||
-                             inst_min || inst_max || inst_minu || inst_maxu ||
-                             inst_sextb || inst_sexth || inst_zexth ||
-                             inst_orcb || inst_rev8 || inst_brev8 ||
-                             inst_pack || inst_packh || inst_zip || inst_unzip ||
-                             inst_bclr || inst_bclri || inst_bext || inst_bexti ||
-                             inst_binv || inst_binvi || inst_bset || inst_bseti;
-    assign inst_bitman_imm_inst = inst_bclri || inst_bexti || inst_binvi || inst_bseti;
-    assign inst_bitman_rs2_inst = inst_sh1add || inst_sh2add || inst_sh3add ||
-                                  inst_andn || inst_orn || inst_xnor ||
-                                  inst_min || inst_max || inst_minu || inst_maxu ||
-                                  inst_pack || inst_packh ||
-                                  inst_bclr || inst_bext || inst_binv || inst_bset;
-    assign bitman_op = {
-        inst_sh1add, inst_sh2add, inst_sh3add,
-        inst_andn, inst_orn, inst_xnor,
-        inst_min, inst_max, inst_minu, inst_maxu,
-        inst_sextb, inst_sexth, inst_zexth,
-        inst_orcb, inst_rev8, inst_brev8,
-        inst_pack, inst_packh, inst_zip, inst_unzip,
-        inst_bclr, inst_bclri, inst_bext, inst_bexti,
-        inst_binv, inst_binvi, inst_bset, inst_bseti
-    };
-    assign bitman_packet = bitman_op;
-    `else
-    logic inst_bitman_any;
-    logic inst_bitman_imm_inst;
-    logic inst_bitman_rs2_inst;
-    assign inst_bitman_any = 1'b0;
-    assign inst_bitman_imm_inst = 1'b0;
-    assign inst_bitman_rs2_inst = 1'b0;
     `endif
 
-    //加载指令--opcode=0000011
-    logic inst_lw , inst_lb , inst_lh , inst_lbu , inst_lhu ;
-    assign inst_lw  = is_load && f3_010;
-    assign inst_lb  = is_load && f3_000;
-    assign inst_lh  = is_load && f3_001;
-    assign inst_lbu = is_load && f3_100;
-    assign inst_lhu = is_load && f3_101;
+    decode_unit u_decode (
+        .inst(id_inst),
+        .pc(id_pc),
+        .bp_pred_hit(bp_pred_hit),
+        .bp_pred_taken(bp_pred_taken),
+        .bp_pred_target(bp_pred_target),
+        .csr_rdata(csr_data),
+        .exe_csr_addr(exe_csr_addr),
+        .exe_csr_wen(exe_csr_wen),
+        .rs1_addr(rs1_addr),
+        .rs2_addr(rs2_addr),
+        .rd_addr(rd_addr),
+        .csr_addr(csr_addr_int),
+        .imm_i_ext(imm_i_ext),
+        .imm_s_ext(imm_s_ext),
+        .imm_b_ext(imm_b_ext),
+        .imm_u_ext(imm_u_ext),
+        .imm_j_ext(imm_j_ext),
+        .imm_z_ext(imm_z_ext),
+        .IMI_valid(IMI_valid),
+        .IMS_valid(IMS_valid),
+        .IMB_valid(IMB_valid),
+        .IMU_valid(IMU_valid),
+        .IMJ_valid(IMJ_valid),
+        .IMZ_valid(IMZ_valid),
+        .alu_packet(alu_packet),
+        .mul_packet(mul_packet),
+        .mem_packet(mem_packet),
+        .csr_packet(csr_packet),
+        .br_jmp_packet(br_jmp_packet),
+        .ctrl_packet(ctrl_packet),
+        `ifdef Z_BITMAIN_ENABLE
+        .bitman_packet(bitman_packet),
+        `endif
+        .need_rs1(need_rs1),
+        .need_rs2(need_rs2),
+        .is_load(is_load),
+        .alu_src2_imm_sel(alu_src2_imm_sel),
+        .inst_lui(inst_lui),
+        .inst_auipc(inst_auipc),
+        .inst_bitman_imm_inst(inst_bitman_imm_inst),
+        .inst_bitman_any(inst_bitman_any),
+        .inst_bitman_rs2_inst(inst_bitman_rs2_inst),
+        .inst_ecall(inst_ecall),
+        .inst_ebreak(inst_ebreak),
+        .inst_mret(inst_mret)
+    );
 
-    //存储指令--opcode=0100011
-    logic inst_sw , inst_sb , inst_sh ;
-    assign inst_sw = is_store && f3_010;
-    assign inst_sb = is_store && f3_000;
-    assign inst_sh = is_store && f3_001;
+    assign csr_addr = csr_addr_int;
 
-    //分支指令--opcode=1100011
-    logic inst_beq , inst_bne , inst_blt , inst_bge , inst_bltu , inst_bgeu ;
-    assign inst_beq  = is_branch && f3_000;
-    assign inst_bne  = is_branch && f3_001;
-    assign inst_blt  = is_branch && f3_100;
-    assign inst_bge  = is_branch && f3_101;
-    assign inst_bltu = is_branch && f3_110;
-    assign inst_bgeu = is_branch && f3_111;
-
-    //跳转指令--opcode=1101111或1100111
-    logic inst_jal , inst_jalr ;
-    assign inst_jal  = is_jal;
-    assign inst_jalr = is_jalr;
-
-    //立即数运算指令--opcode=0010011
-    logic inst_addi , inst_slti , inst_sltiu , inst_xori , inst_ori , inst_andi , inst_slli , inst_srli , inst_srai ;
-    assign inst_addi  = is_op_imm && f3_000;
-    assign inst_slti  = is_op_imm && f3_010;
-    assign inst_sltiu = is_op_imm && f3_011;
-    assign inst_xori  = is_op_imm && f3_100;
-    assign inst_ori   = is_op_imm && f3_110;
-    assign inst_andi  = is_op_imm && f3_111;
-    assign inst_slli  = is_op_imm && f3_001 && f7_0000000;
-    assign inst_srli  = is_op_imm && f3_101 && f7_0000000;
-    assign inst_srai  = is_op_imm && f3_101 && f7_0100000;
-
-    //寄存器-寄存器运算指令--opcode=0110011
-    logic inst_add , inst_sub , inst_sll , inst_slt , inst_sltu , inst_xor , inst_or , inst_and , inst_srl , inst_sra ;
-    logic inst_mul , inst_mulh , inst_mulhsu , inst_mulhu , inst_div , inst_divu , inst_rem , inst_remu ;
-    assign inst_add = is_op_reg && f3_000 && f7_0000000;
-    assign inst_sub = is_op_reg && f3_000 && f7_0100000;
-    assign inst_sll = is_op_reg && f3_001 && f7_0000000;
-    assign inst_slt = is_op_reg && f3_010 && f7_0000000;
-    assign inst_sltu= is_op_reg && f3_011 && f7_0000000;
-    assign inst_xor = is_op_reg && f3_100 && f7_0000000;
-    assign inst_or  = is_op_reg && f3_110 && f7_0000000;
-    assign inst_and = is_op_reg && f3_111 && f7_0000000;
-    assign inst_srl = is_op_reg && f3_101 && f7_0000000;
-    assign inst_sra = is_op_reg && f3_101 && f7_0100000;
-    assign inst_mul = is_op_reg && f3_000 && f7_0000001;
-    assign inst_mulh = is_op_reg && f3_001 && f7_0000001;
-    assign inst_mulhsu = is_op_reg && f3_010 && f7_0000001;
-    assign inst_mulhu = is_op_reg && f3_011 && f7_0000001;
-    assign inst_div = is_op_reg && f3_100 && f7_0000001;
-    assign inst_divu = is_op_reg && f3_101 && f7_0000001;
-    assign inst_rem = is_op_reg && f3_110 && f7_0000001;
-    assign inst_remu = is_op_reg && f3_111 && f7_0000001;
-
-    //lui和auipc指令--opcode=0110111或0010111
-    logic inst_lui , inst_auipc ;
-    assign inst_lui   = is_lui;
-    assign inst_auipc = is_auipc;
-
-    //系统指令--opcode=1110011
-    logic inst_ecall , inst_ebreak , inst_mret , inst_csrrw , inst_csrrs , inst_csrrc , inst_csrrwi , inst_csrrsi , inst_csrrci ;
-    assign inst_ecall  = is_system && f3_000 && id_inst[25:20] == 6'b000000;
-    assign inst_ebreak = is_system && f3_000 && id_inst[25:20] == 6'b000001;
-    assign inst_mret   = is_system && f3_000 && f7_0011000;
-    assign inst_csrrw  = is_system && f3_001;
-    assign inst_csrrs  = is_system && f3_010;
-    assign inst_csrrc  = is_system && f3_011;
-    assign inst_csrrwi = is_system && f3_101;
-    assign inst_csrrsi = is_system && f3_110;
-    assign inst_csrrci = is_system && f3_111;
-
-    //fence指令--opcode=0001111
-    logic inst_fence;
-    assign inst_fence   = is_fence && f3_000;
-
-    //写回阶段数据前递结果
+    // ============================================================
+    // WB forwarding for src1/src2 (0-cycle combinational read path)
+    // Must stay in id_stage — depends on rs1_data/rs2_data from regfile
+    // ============================================================
     logic [31:0] src1, src2;
     assign src1 = (rs1_addr == 5'b0) ? 32'b0 :
                   (regfile_wen && (regfile_waddr == rs1_addr)) ? regfile_wdata :
@@ -335,156 +180,11 @@ module id_stage (
                   (regfile_wen && (regfile_waddr == rs2_addr)) ? regfile_wdata :
                    rs2_data;
 
-    //立即数选择
-    logic IMI_valid , IMS_valid , IMB_valid , IMU_valid , IMJ_valid , IMZ_valid;
-    assign IMI_valid = is_load || inst_addi || inst_slti || inst_sltiu || inst_xori || inst_ori || inst_andi || inst_slli || inst_srli || inst_srai || inst_jalr;
-    assign IMS_valid = is_store;
-    assign IMB_valid = is_branch;
-    assign IMU_valid = is_lui || is_auipc;
-    assign IMJ_valid = is_jal;
-    assign IMZ_valid = inst_csrrwi || inst_csrrsi || inst_csrrci;
-
-    //ALU_PACKET打包
-    logic [`ALU_PACKET_WIDTH-1:0] alu_packet;
-    logic alu_src2_imm_sel;
-    logic [9:0] alu_op;
-    logic alu_add , alu_sub , alu_and , alu_or , alu_xor , alu_sll , alu_srl , alu_sra , alu_slt , alu_sltu;
-    assign alu_src2_imm_sel = is_op_imm || is_lui || is_auipc;
-    assign alu_add = inst_add || inst_addi || inst_lui || inst_auipc;
-    assign alu_sub = inst_sub;
-    assign alu_and = inst_and || inst_andi;
-    assign alu_or  = inst_or  || inst_ori;
-    assign alu_xor = inst_xor || inst_xori;
-    assign alu_sll = inst_sll || inst_slli;
-    assign alu_srl = inst_srl || inst_srli;
-    assign alu_sra = inst_sra || inst_srai;
-    assign alu_slt = inst_slt || inst_slti;
-    assign alu_sltu= inst_sltu || inst_sltiu;
-    assign alu_op = {alu_add, alu_sub, alu_and, alu_or, alu_xor, alu_sll, alu_srl, alu_sra, alu_slt, alu_sltu};
-    assign alu_packet = alu_op;
-
-    //MUL_PACKET打包
-    logic [`MUL_PACKET_WIDTH-1:0] mul_packet;
-    logic [3:0] mul_op;
-    logic src1_signed , src2_signed;
-    assign src1_signed = inst_mul || inst_mulh || inst_mulhsu || inst_div || inst_rem;
-    assign src2_signed = inst_mul || inst_mulh || inst_div || inst_rem;
-    assign mul_op = {inst_mul , (inst_mulh || inst_mulhsu || inst_mulhu) ,
-                     (inst_div || inst_divu) , (inst_rem || inst_remu)};
-    assign mul_packet = {mul_op, src1_signed, src2_signed};
-
-    //MEM_PACKET打包
-    logic [`MEM_PACKET_WIDTH-1:0] mem_packet;
-    logic [31:0] mem_imm;
-    logic [4:0] mem_op;
-    logic is_store_inst;
-    assign is_store_inst = is_store;
-    assign mem_imm = {32{IMS_valid}} & imm_s_ext | {32{IMI_valid}} & imm_i_ext;
-    assign mem_op = {(inst_lb || inst_sb) , (inst_lh || inst_sh) , (inst_lw || inst_sw), inst_lbu, inst_lhu};
-    assign mem_packet = {mem_imm, mem_op, is_store_inst};
-
-    //CSR_PACKET打包
-    logic [`CSR_PACKET_WIDTH-1:0] csr_packet;
-    logic [31:0] csr_rdata;
-    logic [31:0] csr_imm;
-    logic [11:0] csr_waddr;
-    logic [2:0] csr_op;
-    logic csr_wen;
-    logic csr_imm_sel;
-    logic csr_rdata_fwd;
-    assign csr_rdata = csr_data;
-    assign csr_imm = {32{IMZ_valid}} & imm_z_ext;
-    assign csr_waddr = csr_addr;
-    assign csr_op = {(inst_csrrw || inst_csrrwi) , (inst_csrrs || inst_csrrsi) , (inst_csrrc || inst_csrrci)};
-    assign csr_imm_sel = inst_csrrwi || inst_csrrsi || inst_csrrci;
-    assign csr_rdata_fwd = (exe_csr_wen && (exe_csr_addr == csr_addr)) ? 1'b1 : 1'b0;
-    assign csr_wen = inst_csrrw || inst_csrrwi ||
-                     ((inst_csrrs || inst_csrrc) && (rs1_addr != 5'b0)) ||
-                     ((inst_csrrsi || inst_csrrci) && (imm_z != 5'b0));
-    assign csr_packet = {csr_rdata, csr_imm, csr_waddr, csr_op, csr_imm_sel, csr_rdata_fwd, csr_wen};
-
-    //BR_JMP_PACKET打包
-    logic [`BR_JMP_PACKET_WIDTH-1:0] br_jmp_packet;
-    logic [31:0] br_jmp_target;
-    logic [31:0] br_jmp_imm;
-    logic [5:0] br_jmp_opcode;
-    assign br_jmp_imm = ({32{IMB_valid}} & imm_b_ext) | ({32{IMJ_valid}} & imm_j_ext) | ({32{IMI_valid && is_jalr}} & imm_i_ext);
-    assign br_jmp_opcode = {inst_beq, inst_bne, inst_blt, inst_bge, inst_bltu, inst_bgeu};
-    assign br_jmp_target = id_pc + br_jmp_imm;
-    assign br_jmp_packet = {bp_pred_hit, bp_pred_taken, bp_pred_target, br_jmp_target, br_jmp_imm, br_jmp_opcode, is_jal, is_jalr};
-
-    //CTRL_PACKET打包
-    logic [`CTRL_PACKET_WIDTH-1:0] ctrl_packet;
-    logic is_alu_inst , is_mul_inst , is_mem_inst , is_csr_inst , is_br_jmp_inst , is_bitman_inst;
-    logic [4:0] ctrl_rd_addr;
-    logic ctrl_regfile_wen;
-    logic is_multicycle_inst;
-    logic wb_exe_result;
-    logic wb_mem_result;
-    logic [1:0] exe_result_sel;
-    assign is_bitman_inst = inst_bitman_any;
-    assign is_alu_inst = alu_add || alu_sub || alu_and || alu_or || alu_xor || alu_sll || alu_srl || alu_sra || alu_slt || alu_sltu;
-    assign is_mul_inst = inst_mul || inst_mulh || inst_mulhsu || inst_mulhu || inst_div || inst_divu || inst_rem || inst_remu;
-    assign is_mem_inst = is_load || is_store;
-    assign is_csr_inst = inst_csrrw || inst_csrrs || inst_csrrc || inst_csrrwi || inst_csrrsi || inst_csrrci;
-    assign is_br_jmp_inst = is_branch || is_jal || is_jalr;
-    assign ctrl_rd_addr = rd_addr;
-    assign ctrl_regfile_wen = is_alu_inst || is_mul_inst || is_load || is_csr_inst || is_jal || is_jalr || is_bitman_inst;
-    assign is_multicycle_inst = ((inst_mul || inst_mulh || inst_mulhsu || inst_mulhu) && `MUL_MULTICYCLE_ENABLE) || inst_div || inst_divu || inst_rem || inst_remu;
-    assign wb_exe_result = is_alu_inst || is_mul_inst || is_csr_inst || is_jal || is_jalr || is_bitman_inst;
-    assign wb_mem_result = is_mem_inst;
-    assign exe_result_sel = {wb_exe_result, wb_mem_result};
-    `ifdef Z_BITMAIN_ENABLE
-    assign ctrl_packet = {id_pc,exe_result_sel,is_bitman_inst, is_alu_inst, is_mul_inst, is_mem_inst, is_csr_inst, is_br_jmp_inst, ctrl_rd_addr, ctrl_regfile_wen, is_multicycle_inst};
-    `else
-    assign ctrl_packet = {id_pc,exe_result_sel, is_alu_inst, is_mul_inst, is_mem_inst, is_csr_inst, is_br_jmp_inst, ctrl_rd_addr, ctrl_regfile_wen, is_multicycle_inst};
-    `endif
-
-    //SRC_PACKET打包
-    logic [`SRC_PACKET_WIDTH-1:0] src_packet;
-    logic [31:0] reg_src1, reg_src2;
+    // ============================================================
+    // Hazard unit — forwarding control + load-use detection
+    // ============================================================
     logic [1:0] src1_fwd, src2_fwd;
-    assign src1_fwd = (inst_lui || inst_auipc) ? 2'b00 :
-                      (rs1_addr != 5'b0) ?
-                      ((exe_regfile_wen && (exe_dest_addr == rs1_addr) && es_valid) ? 2'b01 :
-                       (mem_regfile_wen && (mem_dest_addr == rs1_addr) && ms_valid) ? 2'b10 : 2'b00) : 2'b00;
-    assign src2_fwd = (alu_src2_imm_sel || inst_bitman_imm_inst || (inst_bitman_any && !inst_bitman_rs2_inst)) ? 2'b00 :
-                      (rs2_addr != 5'b0) ?
-                      ((exe_regfile_wen && (exe_dest_addr == rs2_addr) && es_valid) ? 2'b01 :
-                       (mem_regfile_wen && (mem_dest_addr == rs2_addr) && ms_valid) ? 2'b10 : 2'b00) : 2'b00;
-    assign reg_src1 = inst_lui   ? 32'b0 :
-                      inst_auipc ? id_pc : src1;
-    assign reg_src2 = inst_bitman_imm_inst ? {27'b0, id_inst[24:20]} :
-                      alu_src2_imm_sel ? ({32{IMI_valid}} & imm_i_ext) | ({32{IMU_valid}} & imm_u_ext) : src2;
-    assign src_packet = {reg_src1, reg_src2, src1_fwd, src2_fwd};
 
-    //输出到下一级
-    `ifdef Z_BITMAIN_ENABLE
-    assign ds_to_es_bus = {bitman_packet, alu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet};
-    `else
-    assign ds_to_es_bus = {alu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet};
-    `endif
-
-    //异常处理
-    logic [6:0] exc_code;
-    logic [31:0] exc_mtval;
-    assign exc_code = ds_flush ? 7'b0 :
-                      (inst_ecall && ds_allowin) ? 7'b0101011 :
-                      (inst_ebreak && ds_allowin) ? 7'b0100011 :
-                      (inst_mret && ds_allowin) ? 7'b1000000 :
-                      fs_exc_bus_r[38:32];
-    assign exc_mtval = ds_flush ? 32'b0 :
-                       (inst_ecall && ds_allowin) ? 32'b0 :
-                       (inst_ebreak && ds_allowin) ? 32'b0 :
-                       (inst_mret && ds_allowin) ? 32'b0 :
-                       fs_exc_bus_r[31:0];
-    assign ds_exc_bus = {exc_code, exc_mtval};
-
-    //load_use冒险检测
-    logic need_rs1 , need_rs2;
-    logic exe_load_use_hazard;
-    assign need_rs1 = is_op_reg || is_op_imm || is_load || is_store || is_branch || inst_jalr || inst_csrrw || inst_csrrs || inst_csrrc;
-    assign need_rs2 = is_op_reg || is_store || is_branch;
     logic prev_load;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -493,17 +193,72 @@ module id_stage (
             prev_load <= is_load;
         end
     end
-    always_comb begin
-        if (!rst_n) begin
-            exe_load_use_hazard = 1'b0;
-        end else begin
-            exe_load_use_hazard = ((need_rs1 && (rs1_addr != 5'b0) && (rs1_addr == exe_dest_addr)) ||
-                                  (need_rs2 && (rs2_addr != 5'b0) && (rs2_addr == exe_dest_addr))) &&
-                                  es_valid && exe_regfile_wen && prev_load;
-        end
-    end
-    assign load_use_hazard = exe_load_use_hazard && ds_valid;
+
+    hazard_unit u_hazard (
+        .rs1_addr(rs1_addr),
+        .rs2_addr(rs2_addr),
+        .need_rs1(need_rs1),
+        .need_rs2(need_rs2),
+        .inst_lui(inst_lui),
+        .inst_auipc(inst_auipc),
+        .alu_src2_imm_sel(alu_src2_imm_sel),
+        .inst_bitman_imm_inst(inst_bitman_imm_inst),
+        .inst_bitman_any(inst_bitman_any),
+        .inst_bitman_rs2_inst(inst_bitman_rs2_inst),
+        .exe_dest_addr(exe_dest_addr),
+        .exe_regfile_wen(exe_regfile_wen),
+        .es_valid(es_valid),
+        .mem_dest_addr(mem_dest_addr),
+        .mem_regfile_wen(mem_regfile_wen),
+        .ms_valid(ms_valid),
+        .prev_load(prev_load),
+        .ds_valid(ds_valid),
+        .src1_fwd(src1_fwd),
+        .src2_fwd(src2_fwd),
+        .load_use_hazard(load_use_hazard)
+    );
+
     assign perf_load_use_stall = load_use_hazard;
 
+    // ============================================================
+    // SRC packet — operand preparation (uses WB-forwarded src1/src2)
+    // ============================================================
+    logic [`SRC_PACKET_WIDTH-1:0] src_packet;
+    logic [31:0] reg_src1, reg_src2;
+
+    assign reg_src1 = inst_lui   ? 32'b0 :
+                      inst_auipc ? id_pc : src1;
+    assign reg_src2 = inst_bitman_imm_inst ? {27'b0, id_inst[24:20]} :
+                      alu_src2_imm_sel ? ({32{IMI_valid}} & imm_i_ext) |
+                                          ({32{IMU_valid}} & imm_u_ext) : src2;
+    assign src_packet = {reg_src1, reg_src2, src1_fwd, src2_fwd};
+
+    // ============================================================
+    // Final bus assembly
+    // ============================================================
+    `ifdef Z_BITMAIN_ENABLE
+    assign ds_to_es_bus = {bitman_packet, alu_packet, mul_packet, mem_packet,
+                           csr_packet, br_jmp_packet, ctrl_packet, src_packet};
+    `else
+    assign ds_to_es_bus = {alu_packet, mul_packet, mem_packet,
+                           csr_packet, br_jmp_packet, ctrl_packet, src_packet};
+    `endif
+
+    // ============================================================
+    // Exception encoding
+    // ============================================================
+    logic [6:0] exc_code;
+    logic [31:0] exc_mtval;
+    assign exc_code = ds_flush ? 7'b0 :
+                      (inst_ecall && ds_allowin)  ? 7'b0101011 :
+                      (inst_ebreak && ds_allowin) ? 7'b0100011 :
+                      (inst_mret && ds_allowin)   ? 7'b1000000 :
+                      fs_exc_bus_r[38:32];
+    assign exc_mtval = ds_flush ? 32'b0 :
+                       (inst_ecall && ds_allowin)  ? 32'b0 :
+                       (inst_ebreak && ds_allowin) ? 32'b0 :
+                       (inst_mret && ds_allowin)   ? 32'b0 :
+                       fs_exc_bus_r[31:0];
+    assign ds_exc_bus = {exc_code, exc_mtval};
 
 endmodule

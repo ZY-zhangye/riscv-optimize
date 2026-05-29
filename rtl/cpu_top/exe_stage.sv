@@ -47,10 +47,13 @@ module exe_stage(
     output logic perf_ex_stall
 );
 
+    // ============================================================
+    // Pipeline control
+    // ============================================================
     logic es_ready_go;
     logic mul_stall;
     assign es_ready_go = !mul_stall;
-    assign es_allowin = !es_valid || es_ready_go && ms_allowin;
+    assign es_allowin = !es_valid || (es_ready_go && ms_allowin);
     assign es_to_ms_valid = es_valid && es_ready_go;
     always_ff @(posedge clk) begin
         if (!rst_n) begin
@@ -60,7 +63,9 @@ module exe_stage(
         end
     end
 
-    //锁存数据信号
+    // ============================================================
+    // Data latching
+    // ============================================================
     logic [`DS_ES_WIDTH-1:0] ds_to_es_bus_r;
     logic ds_flush_r;
     logic [31:0] exe_result;
@@ -82,9 +87,6 @@ module exe_stage(
             ds_exc_bus_r <= ds_exc_bus;
             exe_result_reg <= exe_result;
             csr_wdata_reg <= csr_wdata;
-        end else begin
-            exe_result_reg <= exe_result_reg;
-            csr_wdata_reg <= csr_wdata_reg;
         end
     end
     always_ff @(posedge clk) begin
@@ -92,48 +94,52 @@ module exe_stage(
             mem_result_reg <= '0;
         end else if (ds_to_es_valid && es_allowin) begin
             mem_result_reg <= mem_result;
-        end else begin
-            mem_result_reg <= mem_result_reg;
         end
     end
     assign es_flush = rst_n && (ds_flush_r || exception_flag);
 
-    //一级解包
+    // ============================================================
+    // First-level unpack: bus → packets
+    // ============================================================
     `ifdef Z_BITMAIN_ENABLE
         logic [`BITMAN_PACKET_WIDTH-1:0] bitman_packet;
     `endif
-    logic [`ALU_PACKET_WIDTH-1:0] alu_packet;
-    logic [`MUL_PACKET_WIDTH-1:0] mul_packet;
-    logic [`MEM_PACKET_WIDTH-1:0] mem_packet;
-    logic [`CSR_PACKET_WIDTH-1:0] csr_packet;
+    logic [`ALU_PACKET_WIDTH-1:0]   alu_packet;
+    logic [`MUL_PACKET_WIDTH-1:0]   mul_packet;
+    logic [`MEM_PACKET_WIDTH-1:0]   mem_packet;
+    logic [`CSR_PACKET_WIDTH-1:0]   csr_packet;
     logic [`BR_JMP_PACKET_WIDTH-1:0] br_jmp_packet;
-    logic [`CTRL_PACKET_WIDTH-1:0] ctrl_packet;
-    logic [`SRC_PACKET_WIDTH-1:0] src_packet;
+    logic [`CTRL_PACKET_WIDTH-1:0]  ctrl_packet;
+    logic [`SRC_PACKET_WIDTH-1:0]   src_packet;
     `ifdef Z_BITMAIN_ENABLE
-        assign {bitman_packet, alu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet} = ds_to_es_bus_r;
+        assign {bitman_packet, alu_packet, mul_packet, mem_packet,
+                csr_packet, br_jmp_packet, ctrl_packet, src_packet} = ds_to_es_bus_r;
     `else
-        assign {alu_packet, mul_packet, mem_packet, csr_packet, br_jmp_packet, ctrl_packet , src_packet} = ds_to_es_bus_r;
+        assign {alu_packet, mul_packet, mem_packet,
+                csr_packet, br_jmp_packet, ctrl_packet, src_packet} = ds_to_es_bus_r;
     `endif
 
-    //二级解包
-    //BITMAN_PACKET解包
+    // ============================================================
+    // Second-level unpack: packets → fields
+    // ============================================================
+    // BITMAN
     `ifdef Z_BITMAIN_ENABLE
         logic [`BITMAN_OP_WIDTH-1:0] bitman_op;
         assign bitman_op = bitman_packet;
     `endif
-    //ALU_PACKET解包
+    // ALU
     logic [9:0] alu_op;
     assign alu_op = alu_packet[9:0];
-    //MUL_PACKET解包
+    // MUL
     logic [3:0] mul_op;
     logic src1_signed, src2_signed;
     assign {mul_op, src1_signed, src2_signed} = mul_packet;
-    //MEM_PACKET解包
+    // MEM
     logic [31:0] mem_imm;
     logic [4:0] mem_op;
     logic is_store;
     assign {mem_imm, mem_op, is_store} = mem_packet;
-    //CSR_PACKET解包
+    // CSR
     logic [31:0] csr_rdata;
     logic [31:0] csr_imm;
     logic [11:0] csr_waddr;
@@ -141,8 +147,9 @@ module exe_stage(
     logic csr_wen;
     logic csr_imm_sel;
     logic csr_rdata_fwd;
-    assign {csr_rdata, csr_imm, csr_waddr, csr_op, csr_imm_sel, csr_rdata_fwd, csr_wen} = csr_packet;
-    //BR_JMP_PACKET解包
+    assign {csr_rdata, csr_imm, csr_waddr, csr_op,
+            csr_imm_sel, csr_rdata_fwd, csr_wen} = csr_packet;
+    // BR_JMP
     logic [31:0] br_jmp_imm;
     logic [31:0] br_jmp_target;
     logic [5:0] br_jmp_opcode;
@@ -150,27 +157,33 @@ module exe_stage(
     logic bp_pred_hit;
     logic bp_pred_taken;
     logic [31:0] bp_pred_target;
-    assign {bp_pred_hit, bp_pred_taken, bp_pred_target, br_jmp_target, br_jmp_imm, br_jmp_opcode, is_jal, is_jalr} = br_jmp_packet;
-    //CTRL_PACKET解包
-    logic is_alu, is_mul, is_mem, is_csr, is_br_jmp , is_bitman;
+    assign {bp_pred_hit, bp_pred_taken, bp_pred_target,
+            br_jmp_target, br_jmp_imm, br_jmp_opcode,
+            is_jal, is_jalr} = br_jmp_packet;
+    // CTRL
+    logic is_alu, is_mul, is_mem, is_csr, is_br_jmp, is_bitman;
     logic [4:0] rd_addr;
     logic regfile_wen;
     logic is_multicycle;
     logic [1:0] exe_result_sel;
     logic [31:0] exe_pc;
     `ifdef Z_BITMAIN_ENABLE
-    assign {exe_pc, exe_result_sel, is_bitman, is_alu, is_mul, is_mem, is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
+    assign {exe_pc, exe_result_sel, is_bitman, is_alu, is_mul, is_mem,
+            is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
     `else
-    assign {exe_pc, exe_result_sel, is_alu, is_mul, is_mem, is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
+    assign {exe_pc, exe_result_sel, is_alu, is_mul, is_mem,
+            is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
     `endif
-    //SRC_PACKET解包
+    // SRC
     logic [31:0] reg_src1;
     logic [31:0] reg_src2;
     logic [1:0] src1_fwd;
     logic [1:0] src2_fwd;
     assign {reg_src1, reg_src2, src1_fwd, src2_fwd} = src_packet;
 
-    //操作数选择（使用前递单元）
+    // ============================================================
+    // Operand selection (forwarding unit)
+    // ============================================================
     logic [31:0] src1, src2;
     logic [31:0] csr_data;
 
@@ -187,7 +200,9 @@ module exe_stage(
 
     assign csr_data = csr_rdata_fwd ? csr_wdata_reg : csr_rdata;
 
-    //BITMAN计算
+    // ============================================================
+    // BITMAN execution (combinational)
+    // ============================================================
     `ifdef Z_BITMAIN_ENABLE
         logic [31:0] bitman_result;
         logic bm_sh1add, bm_sh2add, bm_sh3add;
@@ -246,21 +261,17 @@ module exe_stage(
                 bm_sexth: bitman_result = {{16{src1[15]}}, src1[15:0]};
                 bm_zexth: bitman_result = {16'b0, src1[15:0]};
                 bm_orcb: bitman_result = {
-                    {8{|src1[31:24]}},
-                    {8{|src1[23:16]}},
-                    {8{|src1[15:8]}},
-                    {8{|src1[7:0]}}
+                    {8{|src1[31:24]}}, {8{|src1[23:16]}},
+                    {8{|src1[15:8]}},   {8{|src1[7:0]}}
                 };
                 bm_rev8: bitman_result = {src1[7:0], src1[15:8], src1[23:16], src1[31:24]};
                 bm_brev8: bitman_result = {
-                    reverse8(src1[31:24]),
-                    reverse8(src1[23:16]),
-                    reverse8(src1[15:8]),
-                    reverse8(src1[7:0])
+                    reverse8(src1[31:24]), reverse8(src1[23:16]),
+                    reverse8(src1[15:8]),  reverse8(src1[7:0])
                 };
-                bm_pack: bitman_result = {src2[15:0], src1[15:0]};
+                bm_pack:  bitman_result = {src2[15:0], src1[15:0]};
                 bm_packh: bitman_result = {16'b0, src2[7:0], src1[7:0]};
-                bm_zip: bitman_result = zip32(src1);
+                bm_zip:   bitman_result = zip32(src1);
                 bm_unzip: bitman_result = unzip32(src1);
                 bm_bclr, bm_bclri: bitman_result = src1 & ~bit_mask;
                 bm_bext, bm_bexti: bitman_result = {31'b0, src1[bit_idx]};
@@ -274,9 +285,10 @@ module exe_stage(
         assign bitman_result = 32'b0;
     `endif
 
-    //ALU计算（使用ALU包装单元）
+    // ============================================================
+    // ALU execution (alu_wrapper)
+    // ============================================================
     logic [31:0] alu_result;
-
     alu_wrapper u_alu_wrapper (
         .alu_op(alu_op),
         .src1(src1),
@@ -284,7 +296,9 @@ module exe_stage(
         .alu_result(alu_result)
     );
 
-    //MUL计算
+    // ============================================================
+    // Multiplier
+    // ============================================================
     logic [31:0] mul_result;
     mul u_mul (
         .clk(clk),
@@ -300,23 +314,26 @@ module exe_stage(
         .mul_stall(mul_stall)
     );
 
-    //MEM访问
+    // ============================================================
+    // Memory access
+    // ============================================================
     logic inst_lb, inst_sb, inst_lh, inst_sh, inst_lw, inst_sw, inst_lbu, inst_lhu;
     logic [5:0] load_inst;
-    assign load_inst = {(inst_lb || inst_sb), (inst_lh || inst_sh), (inst_lw || inst_sw), inst_lbu, inst_lhu, is_store};
+    assign load_inst = {(inst_lb || inst_sb), (inst_lh || inst_sh),
+                        (inst_lw || inst_sw), inst_lbu, inst_lhu, is_store};
     assign inst_lb  = mem_op[4] & ~is_store;
     assign inst_lh  = mem_op[3] & ~is_store;
     assign inst_lw  = mem_op[2] & ~is_store;
     assign inst_lbu = mem_op[1] & ~is_store;
     assign inst_lhu = mem_op[0] & ~is_store;
-
     assign inst_sb  = mem_op[4] & is_store;
     assign inst_sh  = mem_op[3] & is_store;
     assign inst_sw  = mem_op[2] & is_store;
     assign dmem_addr = src1 + mem_imm;
     assign dmem_wdata = (inst_sb) ? {4{src2[7:0]}} :
-                       (inst_sh) ? {2{src2[15:0]}} :
-                       src2;
+                        (inst_sh) ? {2{src2[15:0]}} :
+                        src2;
+
     logic [3:0] sb_wen, sh_wen;
     always_comb begin
         case (dmem_addr[1:0])
@@ -345,7 +362,9 @@ module exe_stage(
     end
     assign dmem_en = |mem_op && !es_flush;
 
-    //CSR访问
+    // ============================================================
+    // CSR access
+    // ============================================================
     logic inst_csrrw, inst_csrrs, inst_csrrc, inst_csrrwi, inst_csrrsi, inst_csrrci;
     assign inst_csrrw  = csr_op == 3'b100 && csr_imm_sel == 1'b0;
     assign inst_csrrs  = csr_op == 3'b010 && csr_imm_sel == 1'b0;
@@ -353,103 +372,88 @@ module exe_stage(
     assign inst_csrrwi = csr_op == 3'b100 && csr_imm_sel == 1'b1;
     assign inst_csrrsi = csr_op == 3'b010 && csr_imm_sel == 1'b1;
     assign inst_csrrci = csr_op == 3'b001 && csr_imm_sel == 1'b1;
-    assign exe_csr_wen = csr_wen;
+    assign exe_csr_wen  = csr_wen;
     assign exe_csr_addr = csr_waddr;
-    assign csr_wdata = inst_csrrw ? src1 :
-                       inst_csrrs ? (csr_data | src1) :
-                       inst_csrrc ? (csr_data & ~src1) :
+    assign csr_wdata = inst_csrrw  ? src1 :
+                       inst_csrrs  ? (csr_data | src1) :
+                       inst_csrrc  ? (csr_data & ~src1) :
                        inst_csrrwi ? csr_imm :
                        inst_csrrsi ? (csr_data | csr_imm) :
                        inst_csrrci ? (csr_data & ~csr_imm) :
                        32'b0;
 
-    //BR/JMP计算
-    logic is_beq, is_bne, is_blt, is_bge, is_bltu, is_bgeu;
-    assign is_beq = br_jmp_opcode[5];
-    assign is_bne = br_jmp_opcode[4];
-    assign is_blt = br_jmp_opcode[3];
-    assign is_bge = br_jmp_opcode[2];
-    assign is_bltu= br_jmp_opcode[1];
-    assign is_bgeu= br_jmp_opcode[0];
-    logic [32:0] sub_res;
-    assign sub_res = {1'b0, src1} - {1'b0, src2};
+    // ============================================================
+    // Branch controller — extracted from inline logic
+    // ============================================================
+    branch_controller u_branch_controller (
+        .bp_pred_hit(bp_pred_hit),
+        .bp_pred_taken(bp_pred_taken),
+        .bp_pred_target(bp_pred_target),
+        .br_jmp_target(br_jmp_target),
+        .br_jmp_imm(br_jmp_imm),
+        .br_jmp_opcode(br_jmp_opcode),
+        .is_jal(is_jal),
+        .is_jalr(is_jalr),
+        .src1(src1),
+        .src2(src2),
+        .exe_pc(exe_pc),
+        .es_flush(es_flush),
+        .es_valid(es_valid),
+        .br_taken(br_taken),
+        .br_target(br_target),
+        .br_redirect(br_redirect),
+        .br_redirect_target(br_redirect_target),
+        .bp_update_valid(bp_update_valid),
+        .bp_update_pc(bp_update_pc),
+        .bp_update_taken(bp_update_taken),
+        .bp_update_target(bp_update_target),
+        .bp_update_is_jalr(bp_update_is_jalr),
+        .perf_branch_valid(perf_branch_valid),
+        .perf_branch_mispredict(perf_branch_mispredict),
+        .perf_bp_hit(perf_bp_hit),
+        .perf_bp_miss(perf_bp_miss)
+    );
 
-    logic eq, lt, ltu;
-    assign eq  = (src1 == src2);
-    assign ltu = sub_res[32];
-    assign lt  = (src1[31] != src2[31]) ? src1[31] : ltu;
-
-    logic br_cond_raw;
-    assign br_cond_raw = (is_beq  & eq)
-                       | (is_bne  & !eq)
-                       | (is_blt  & lt)
-                       | (is_bge  & !lt)
-                       | (is_bltu & ltu)
-                       | (is_bgeu & !ltu);
-
-    logic is_branch;
-    assign is_branch = |br_jmp_opcode;
-
-    assign br_taken = es_flush ? 1'b0 : (is_jal | is_jalr | (is_branch & br_cond_raw));
-
-    logic [31:0] jalr_sum;
-    logic [31:0] pc_jalr;
-    assign jalr_sum = src1 + br_jmp_imm;
-    assign pc_jalr = { jalr_sum[31:1], 1'b0 };
-    assign br_target = is_jalr ? pc_jalr : br_jmp_target;
-
-    assign br_redirect = !es_flush && is_br_jmp &&
-                         ((br_taken != bp_pred_taken) ||
-                          (br_taken && (br_target != bp_pred_target)));
-    assign br_redirect_target = br_taken ? br_target : exe_pc + 32'd4;
-
-    assign bp_update_valid = es_valid && !es_flush && is_br_jmp;
-    assign bp_update_pc = exe_pc;
-    assign bp_update_taken = br_taken;
-    assign bp_update_target = br_target;
-    assign bp_update_is_jalr = is_jalr;
-    assign perf_branch_valid = bp_update_valid;
-    assign perf_branch_mispredict = br_redirect;
-    assign perf_bp_hit = bp_update_valid && !is_jalr && bp_pred_hit;
-    assign perf_bp_miss = bp_update_valid && !is_jalr && !bp_pred_hit;
     assign perf_ex_stall = es_valid && !es_ready_go && !es_flush;
 
-    //结果选择
+    // ============================================================
+    // Result selection
+    // ============================================================
     always_comb begin
         exe_result = 32'b0;
         if (!es_flush) begin
             unique case (1'b1)
                 is_bitman: exe_result = bitman_result;
-                is_alu: exe_result = alu_result;
-                is_mem: exe_result = dmem_addr;
-                is_mul: exe_result = mul_result;
-                is_csr: exe_result = csr_data;
-                default: exe_result = exe_pc + 4;
+                is_alu:    exe_result = alu_result;
+                is_mem:    exe_result = dmem_addr;
+                is_mul:    exe_result = mul_result;
+                is_csr:    exe_result = csr_data;
+                default:   exe_result = exe_pc + 4;
             endcase
         end
     end
 
-    //数据前递接口
-    assign exe_dest_addr = rd_addr;
+    // ============================================================
+    // Forwarding / output interfaces
+    // ============================================================
+    assign exe_dest_addr   = rd_addr;
     assign exe_regfile_wen = regfile_wen && !es_flush;
 
-    //输出到下一级
     assign es_to_ms_bus = {
-        exe_pc,     //32
-        exe_result, //32
-        load_inst,  //6
-        rd_addr,    //5
-        regfile_wen,//1
-        exe_result_sel, //2
-        exe_csr_wen,    //1
-        exe_csr_addr,   //12
-        csr_wdata       //32
+        exe_pc,         // 32
+        exe_result,     // 32
+        load_inst,      // 6
+        rd_addr,        // 5
+        regfile_wen,    // 1
+        exe_result_sel, // 2
+        exe_csr_wen,    // 1
+        exe_csr_addr,   // 12
+        csr_wdata       // 32
     };
 
-    //异常接口
+    // Exception bus
     logic [32:0] br_bus;
     assign br_bus = {br_taken, br_target};
     assign exe_exc_bus = {br_bus, ds_exc_bus_r};
-
 
 endmodule
