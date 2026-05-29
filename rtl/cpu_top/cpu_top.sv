@@ -41,10 +41,17 @@ module cpu_top (
     logic [31:0] push_bp_target0;
     logic [`EXC_WIDTH-1:0] push_exc0;
     logic [1:0] push_free;
-    logic queue_pop_valid;
-    logic [`FS_DS_WIDTH-1:0] queue_pop_bus;
-    logic [`EXC_WIDTH-1:0] queue_pop_exc;
+    logic [1:0] id_pop_count;
+    logic queue_pop_valid0, queue_pop_valid1;
+    logic [`FS_DS_WIDTH-1:0] queue_pop_bus0, queue_pop_bus1;
+    logic [`EXC_WIDTH-1:0] queue_pop_exc0, queue_pop_exc1;
     logic queue_flush;
+    // Lane1 regfile
+    logic [4:0] rs1_addr1, rs2_addr1;
+    logic [31:0] rs1_data1, rs2_data1;
+    // Lane1 shadow
+    logic lane1_can_pair;
+    logic [31:0] lane1_pc, lane1_inst;
 
     // Branch / exception
     logic br_redirect;
@@ -162,22 +169,36 @@ module cpu_top (
         .push_exc0(push_exc0),
         .push_exc1('0),
         .push_free(push_free),
-        .pop_ready(id_ds_allowin),
-        .pop_valid(queue_pop_valid),
-        .pop_bus(queue_pop_bus),
-        .pop_exc(queue_pop_exc),
+        .pop_count(id_pop_count),
+        .pop_valid0(queue_pop_valid0),
+        .pop_bus0(queue_pop_bus0),
+        .pop_exc0(queue_pop_exc0),
+        .pop_valid1(queue_pop_valid1),
+        .pop_bus1(queue_pop_bus1),
+        .pop_exc1(queue_pop_exc1),
         .flush(queue_flush)
     );
     assign if_ds_allowin = (push_free >= 2'd1);
 
-    // ID receives from queue
+    // ID receives from queue pop0 (lane0), pop1 (lane1 shadow)
     id_stage u_id_stage (
         .clk(clk),
         .rst_n(rst_n),
-        .fs_to_ds_valid(queue_pop_valid),
-        .fs_to_ds_bus(queue_pop_bus),
+        .fs_to_ds_valid(queue_pop_valid0),
+        .fs_to_ds_bus(queue_pop_bus0),
         .ds_allowin(id_ds_allowin),
-        .fs_exc_bus(queue_pop_exc),
+        .fs_exc_bus(queue_pop_exc0),
+        .pop_count(id_pop_count),
+        .pop_valid1(queue_pop_valid1),
+        .pop_bus1(queue_pop_bus1),
+        .pop_exc1(queue_pop_exc1),
+        .rs1_addr1(rs1_addr1),
+        .rs2_addr1(rs2_addr1),
+        .rs1_data1(rs1_data1),
+        .rs2_data1(rs2_data1),
+        .lane1_can_pair(lane1_can_pair),
+        .lane1_pc(lane1_pc),
+        .lane1_inst(lane1_inst),
 
     `else
     // ==== Single-issue: original direct IF→ID (queue not in path) ====
@@ -326,6 +347,13 @@ module cpu_top (
         .regfile_rdata1(rs1_data),
         .regfile_raddr2(rs2_addr),
         .regfile_rdata2(rs2_data)
+        `ifdef DUAL_ISSUE_ENABLE
+        ,
+        .regfile_raddr3(rs1_addr1),
+        .regfile_rdata3(rs1_data1),
+        .regfile_raddr4(rs2_addr1),
+        .regfile_rdata4(rs2_data1)
+        `endif
         `ifdef DEBUG_EN
         ,
         .debug_data(debug_data)

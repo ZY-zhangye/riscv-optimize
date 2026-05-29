@@ -38,6 +38,7 @@ $sv_files = @(
     "$rtl_cpu\hazard_unit.sv",
     "$rtl_cpu\id_stage.sv",
     "$rtl_cpu\instr_queue.sv",
+    "$rtl_cpu\issue_select.sv",
     "$rtl_cpu\if_stage.sv",
     "$rtl_cpu\mem_stage.sv",
     "$rtl_cpu\mul.sv",

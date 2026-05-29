@@ -12,6 +12,15 @@ module regfiles (
     //读端口2
     input logic [4:0] regfile_raddr2,
     output logic [31:0] regfile_rdata2
+    `ifdef DUAL_ISSUE_ENABLE
+    ,
+    //读端口3 (lane1 rs1)
+    input logic [4:0] regfile_raddr3,
+    output logic [31:0] regfile_rdata3,
+    //读端口4 (lane1 rs2)
+    input logic [4:0] regfile_raddr4,
+    output logic [31:0] regfile_rdata4
+    `endif
     `ifdef DEBUG_EN
     ,
     //debug接口
@@ -37,6 +46,10 @@ module regfiles (
     //读寄存器
     assign regfile_rdata1 = (regfile_raddr1 != 5'b0) ? regfile[regfile_raddr1] : 32'b0;
     assign regfile_rdata2 = (regfile_raddr2 != 5'b0) ? regfile[regfile_raddr2] : 32'b0;
+    `ifdef DUAL_ISSUE_ENABLE
+    assign regfile_rdata3 = (regfile_raddr3 != 5'b0) ? regfile[regfile_raddr3] : 32'b0;
+    assign regfile_rdata4 = (regfile_raddr4 != 5'b0) ? regfile[regfile_raddr4] : 32'b0;
+    `endif
     `ifdef DEBUG_EN
     assign debug_data = regfile[3];
     `endif

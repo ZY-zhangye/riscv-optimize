@@ -71,6 +71,8 @@ call xvlog --sv -i "%RTL_CPU%" -i "%RTL_SOC%" -i "%IP_ROOT%\ipstatic" ^
     "%RTL_CPU%\hazard_unit.sv" ^
     "%RTL_CPU%\id_stage.sv" ^
     "%RTL_CPU%\if_stage.sv" ^
+    "%RTL_CPU%\instr_queue.sv" ^
+    "%RTL_CPU%\issue_select.sv" ^
     "%RTL_CPU%\mem_stage.sv" ^
     "%RTL_CPU%\mul.sv" ^
     "%RTL_CPU%\regfile_csr.sv" ^

@@ -21,10 +21,13 @@ module instr_queue #(
     output logic [1:0] push_free,   // free slots available for push
 
     // ---- Pop side (to ID stage) ----
-    input  logic pop_ready,          // ds_allowin from ID
-    output logic pop_valid,
-    output logic [`FS_DS_WIDTH-1:0] pop_bus,    // {inst, pc, bp_hit, bp_taken, bp_target}
-    output logic [`EXC_WIDTH-1:0] pop_exc,
+    input  logic [1:0] pop_count,     // 0=none, 1=pop oldest, 2=pop oldest+next
+    output logic pop_valid0,
+    output logic [`FS_DS_WIDTH-1:0] pop_bus0,   // oldest entry
+    output logic [`EXC_WIDTH-1:0] pop_exc0,
+    output logic pop_valid1,
+    output logic [`FS_DS_WIDTH-1:0] pop_bus1,   // second-oldest entry
+    output logic [`EXC_WIDTH-1:0] pop_exc1,
 
     // ---- Control ----
     input logic flush
@@ -48,27 +51,41 @@ module instr_queue #(
     assign push_free = (count < DEPTH) ? ((count < DEPTH-1) ? 2'd2 : 2'd1) : 2'd0;
 
     // ---- Pop interface ----
-    assign pop_valid = entries[head].valid;
-    assign pop_bus = {
+    logic [$clog2(DEPTH)-1:0] head_plus1;
+    assign head_plus1 = next_ptr(head);
+
+    assign pop_valid0 = entries[head].valid;
+    assign pop_bus0 = {
         entries[head].inst,
         entries[head].pc,
         entries[head].bp_hit,
         entries[head].bp_pred_taken,
         entries[head].bp_pred_target
     };
-    assign pop_exc = entries[head].exc;
+    assign pop_exc0 = entries[head].exc;
+
+    assign pop_valid1 = entries[head_plus1].valid;
+    assign pop_bus1 = {
+        entries[head_plus1].inst,
+        entries[head_plus1].pc,
+        entries[head_plus1].bp_hit,
+        entries[head_plus1].bp_pred_taken,
+        entries[head_plus1].bp_pred_target
+    };
+    assign pop_exc1 = entries[head_plus1].exc;
 
     function automatic [$clog2(DEPTH)-1:0] next_ptr(input [$clog2(DEPTH)-1:0] p);
         return (p == DEPTH-1) ? '0 : p + 1'b1;
     endfunction
 
     // Combinational next-state to handle pop + dual push correctly
-    logic do_pop, do_push0, do_push1;
+    logic do_pop0, do_pop1, do_push0, do_push1;
     logic [2:0] cnt_after_pop, cnt_after_push0, count_next;
     logic [$clog2(DEPTH)-1:0] head_next, tail_next;
 
-    assign do_pop  = pop_valid && pop_ready;
-    assign cnt_after_pop = count - {2'b0, do_pop};
+    assign do_pop0 = pop_valid0 && (pop_count >= 2'd1);
+    assign do_pop1 = pop_valid1 && (pop_count == 2'd2);
+    assign cnt_after_pop = count - {2'b0, do_pop0} - {2'b0, do_pop1};
 
     assign do_push0 = push_valid0 && (cnt_after_pop < DEPTH);
     assign cnt_after_push0 = cnt_after_pop + {2'b0, do_push0};
@@ -76,7 +93,8 @@ module instr_queue #(
     assign do_push1 = push_valid1 && (cnt_after_push0 < DEPTH);
     assign count_next = cnt_after_push0 + {2'b0, do_push1};
 
-    assign head_next = do_pop ? next_ptr(head) : head;
+    assign head_next = do_pop1 ? next_ptr(next_ptr(head)) :
+                       do_pop0 ? next_ptr(head) : head;
     assign tail_next = do_push1 ? next_ptr(do_push0 ? next_ptr(tail) : tail) :
                        do_push0 ? next_ptr(tail) : tail;
 
@@ -94,8 +112,10 @@ module instr_queue #(
             tail  <= '0;
             count <= '0;
         end else begin
-            if (do_pop)
+            if (do_pop0)
                 entries[head].valid <= 1'b0;
+            if (do_pop1)
+                entries[head_plus1].valid <= 1'b0;
             if (do_push0) begin
                 entries[tail].valid        <= 1'b1;
                 entries[tail].inst         <= push_inst0;

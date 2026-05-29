@@ -28,6 +28,8 @@ compile() {
         rtl/cpu_top/hazard_unit.sv \
         rtl/cpu_top/id_stage.sv \
         rtl/cpu_top/if_stage.sv \
+        rtl/cpu_top/instr_queue.sv \
+        rtl/cpu_top/issue_select.sv \
         rtl/cpu_top/mem_stage.sv \
         rtl/cpu_top/mul.sv \
         rtl/cpu_top/regfile_csr.sv \
