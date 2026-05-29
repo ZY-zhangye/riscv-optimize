@@ -5,6 +5,7 @@
 `define MUL_MULTICYCLE_ENABLE 1'b1   //是否采用多周期乘法运算，1为多周期，0为单周期
 `define MULTICYCLE_ENABLE 1'b1   //是否采用多周期运算（如除法），1为多周期，0为单周期
 // `define Z_BITMAIN_ENABLE 1'b1   // Zb扩展已禁用，为多发射做基线精简
+// `define DUAL_ISSUE_ENABLE 1'b1  // 双发射使能，默认关闭。后续所有双发射改动须在此宏关闭时保持单发射行为一致
 //定义位宽
 `define DATA_WIDTH 32
 `define ADDR_WIDTH 32

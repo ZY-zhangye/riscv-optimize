@@ -7,6 +7,7 @@ module tb_cpu_top_simple #(
 );
     logic clk;
     logic rst_n;
+    string mem_file_runtime;
     logic [31:0] imem_rdata;
     logic [31:0] imem_addr;
     logic imem_en;
@@ -47,8 +48,12 @@ module tb_cpu_top_simple #(
     logic [31:0] dmem [0:4095];
 
     initial begin
-        $readmemh(MEM_FILE, imem);
-        $readmemh(MEM_FILE, dmem);
+        mem_file_runtime = MEM_FILE;
+        if (!$value$plusargs("MEM_FILE=%s", mem_file_runtime))
+            $display("No +MEM_FILE plusarg, using default: %s", mem_file_runtime);
+        $display("Loading memory from: %s", mem_file_runtime);
+        $readmemh(mem_file_runtime, imem);
+        $readmemh(mem_file_runtime, dmem);
     end
 
     always_ff @(posedge clk) begin

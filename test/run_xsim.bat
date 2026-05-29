@@ -61,9 +61,11 @@ if errorlevel 1 (
 call xvlog --sv -i "%RTL_CPU%" -i "%RTL_SOC%" -i "%IP_ROOT%\ipstatic" ^
     "%IP_ROOT%\PLL\PLL_clk_wiz.v" ^
     "%IP_ROOT%\PLL\PLL.v" ^
+    "%RTL_CPU%\alu_wrapper.sv" ^
     "%RTL_CPU%\cpu_top.sv" ^
     "%RTL_CPU%\divider.sv" ^
     "%RTL_CPU%\exe_stage.sv" ^
+    "%RTL_CPU%\forwarding_unit.sv" ^
     "%RTL_CPU%\id_stage.sv" ^
     "%RTL_CPU%\if_stage.sv" ^
     "%RTL_CPU%\mem_stage.sv" ^
@@ -71,6 +73,7 @@ call xvlog --sv -i "%RTL_CPU%" -i "%RTL_SOC%" -i "%IP_ROOT%\ipstatic" ^
     "%RTL_CPU%\regfile_csr.sv" ^
     "%RTL_CPU%\regfiles.sv" ^
     "%RTL_CPU%\wb_stage.sv" ^
+    "%RTL_CPU%\write_port_arbiter.sv" ^
     "%RTL_SOC%\bridge.sv" ^
     "%RTL_SOC%\IO.sv" ^
     "%RTL_SOC%\my_cpu.sv" ^

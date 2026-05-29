@@ -18,9 +18,11 @@ compile() {
     xvlog --sv -i rtl/cpu_top -i rtl/my_cpu -i test \
         -d DEBUG_EN -d USE_RTL_DIVIDER_MODEL \
         rtl/cpu_top/defines.svh \
+        rtl/cpu_top/alu_wrapper.sv \
         rtl/cpu_top/cpu_top.sv \
         rtl/cpu_top/divider.sv \
         rtl/cpu_top/exe_stage.sv \
+        rtl/cpu_top/forwarding_unit.sv \
         rtl/cpu_top/id_stage.sv \
         rtl/cpu_top/if_stage.sv \
         rtl/cpu_top/mem_stage.sv \
@@ -28,6 +30,7 @@ compile() {
         rtl/cpu_top/regfile_csr.sv \
         rtl/cpu_top/regfiles.sv \
         rtl/cpu_top/wb_stage.sv \
+        rtl/cpu_top/write_port_arbiter.sv \
         test/behav_multiplier.sv \
         test/tb_cpu_top_simple.sv 2>&1 | grep -E "ERROR|FATAL" || echo "Compile OK"
 }
