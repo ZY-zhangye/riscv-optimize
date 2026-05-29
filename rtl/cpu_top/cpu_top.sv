@@ -53,6 +53,22 @@ module cpu_top (
     logic lane1_can_pair;
     logic [31:0] lane1_pc, lane1_inst;
 
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // Lane1 execution (P4+)
+    logic ds_to_es_valid1;
+    logic [`DS_ES_WIDTH-1:0] ds_to_es_bus1;
+    logic ds_flush1;
+    logic [`EXC_WIDTH-1:0] ds_exc_bus1;
+    logic es1_allowin;
+    logic [4:0] exe1_dest_addr;
+    logic exe1_regfile_wen;
+    logic es1_valid;
+    logic ms1_to_ws_valid;
+    logic [`MS_WS_WIDTH-1:0] ms1_to_ws_bus;
+    logic ws1_allowin;
+    logic [31:0] lane0_exe_fwd_result;
+    `endif
+
     // Branch / exception
     logic br_redirect;
     logic [31:0] br_redirect_target;
@@ -199,6 +215,15 @@ module cpu_top (
         .lane1_can_pair(lane1_can_pair),
         .lane1_pc(lane1_pc),
         .lane1_inst(lane1_inst),
+        `ifdef DUAL_ISSUE_COMMIT_ENABLE
+        .ds_to_es_valid1(ds_to_es_valid1),
+        .ds_to_es_bus1(ds_to_es_bus1),
+        .ds_flush1(ds_flush1),
+        .ds_exc_bus1(ds_exc_bus1),
+        .exe1_dest_addr(exe1_dest_addr),
+        .exe1_regfile_wen(exe1_regfile_wen),
+        .es1_valid(es1_valid),
+        `endif
 
     `else
     // ==== Single-issue: original direct IF→ID (queue not in path) ====
@@ -281,7 +306,35 @@ module cpu_top (
         .perf_ex_stall(perf_ex_stall),
         .mem_result(mem_result),
         .exe_exc_bus(exe_exc_bus)
+        `ifdef DUAL_ISSUE_COMMIT_ENABLE
+        ,
+        .exe_fwd_result(lane0_exe_fwd_result)
+        `endif
     );
+
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // ============================================================
+    // Lane1: simple ALU execution (P4+)
+    // ============================================================
+    exe_lane_simple u_exe_lane_simple (
+        .clk(clk),
+        .rst_n(rst_n),
+        .ds_to_es_valid(ds_to_es_valid1),
+        .es_allowin(es1_allowin),
+        .ds_to_es_bus(ds_to_es_bus1),
+        .ds_flush(ds_flush1),
+        .lane0_es_flush(es_flush),
+        .exception_flag(exception_flag),
+        .lane0_exe_result(lane0_exe_fwd_result),
+        .lane0_mem_result(mem_result),
+        .ms1_to_ws_valid(ms1_to_ws_valid),
+        .ws_allowin(ws1_allowin),
+        .ms1_to_ws_bus(ms1_to_ws_bus),
+        .exe1_dest_addr(exe1_dest_addr),
+        .exe1_regfile_wen(exe1_regfile_wen),
+        .es1_valid(es1_valid)
+    );
+    `endif
 
     // ============================================================
     // MEM stage
@@ -322,6 +375,11 @@ module cpu_top (
         .ms_to_ws_bus(ms_to_ws_bus),
         .ms_to_ws_valid(ms_to_ws_valid),
         .ws_allowin(ws_allowin),
+        `ifdef DUAL_ISSUE_COMMIT_ENABLE
+        .ms1_to_ws_valid(ms1_to_ws_valid),
+        .ms1_to_ws_bus(ms1_to_ws_bus),
+        .ws1_allowin(ws1_allowin),
+        `endif
         .regfile_wen(regfile_wen),
         .regfile_addr(regfile_waddr),
         .regfile_wdata(regfile_wdata)

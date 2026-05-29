@@ -16,13 +16,20 @@ module hazard_unit (
     input logic inst_bitman_any,
     input logic inst_bitman_rs2_inst,
 
-    // Pipeline state for forwarding detection
+    // Pipeline state for forwarding detection (lane0)
     input logic [4:0] exe_dest_addr,
     input logic exe_regfile_wen,
     input logic es_valid,
     input logic [4:0] mem_dest_addr,
     input logic mem_regfile_wen,
     input logic ms_valid,
+
+    // Pipeline state for forwarding detection (lane1 EX1)
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    input logic [4:0] exe1_dest_addr,
+    input logic exe1_regfile_wen,
+    input logic es1_valid,
+    `endif
 
     // Load-use hazard inputs
     input logic prev_load,
@@ -58,6 +65,19 @@ module hazard_unit (
     assign exe_load_use = ((need_rs1 && (rs1_addr != 5'b0) && (rs1_addr == exe_dest_addr)) ||
                            (need_rs2 && (rs2_addr != 5'b0) && (rs2_addr == exe_dest_addr))) &&
                            es_valid && exe_regfile_wen && prev_load;
+
+    // ---- Lane1 EX1 result hazard (P4+) ----
+    // Stall when current instruction reads lane1's EX1 result (not yet in regfile).
+    // This avoids adding a 3rd forwarding source; the stall naturally clears
+    // once lane1 result reaches the regfile (1-2 cycles).
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    logic lane1_exe_hazard;
+    assign lane1_exe_hazard = ((need_rs1 && (rs1_addr != 5'b0) && (rs1_addr == exe1_dest_addr)) ||
+                                (need_rs2 && (rs2_addr != 5'b0) && (rs2_addr == exe1_dest_addr))) &&
+                                es1_valid && exe1_regfile_wen;
+    assign load_use_hazard = (exe_load_use || lane1_exe_hazard) && ds_valid;
+    `else
     assign load_use_hazard = exe_load_use && ds_valid;
+    `endif
 
 endmodule : hazard_unit

@@ -27,11 +27,24 @@ module write_port_arbiter (
     assign conflict = wb_wen_0 && wb_wen_1 && (wb_addr_0 == wb_addr_1) && (wb_addr_0 != 5'b0);
 
     always_comb begin
-        // 优先级：第一条指令优先
-        regfile_wen = wb_wen_0;
-        regfile_waddr = wb_addr_0;
-        regfile_wdata = wb_data_0;
-        stall_1 = conflict;  // 发生冲突时，第二条指令停顿
+        // Lane0 has priority (older instruction). If lane0 doesn't write,
+        // lane1's write passes through.
+        if (wb_wen_0) begin
+            regfile_wen   = wb_wen_0;
+            regfile_waddr = wb_addr_0;
+            regfile_wdata = wb_data_0;
+            stall_1 = conflict;
+        end else if (wb_wen_1) begin
+            regfile_wen   = wb_wen_1;
+            regfile_waddr = wb_addr_1;
+            regfile_wdata = wb_data_1;
+            stall_1 = 1'b0;
+        end else begin
+            regfile_wen   = 1'b0;
+            regfile_waddr = 5'b0;
+            regfile_wdata = 32'b0;
+            stall_1 = 1'b0;
+        end
     end
 
 endmodule : write_port_arbiter

@@ -2,11 +2,17 @@
 module wb_stage (
     input logic clk,
     input logic rst_n,
-    //来自内存阶段的信息
+    //来自内存阶段的信息 (lane0)
     input logic [`MS_WS_WIDTH-1:0] ms_to_ws_bus,
     //握手信号
     input logic ms_to_ws_valid,
     output logic ws_allowin,
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    //来自 lane1 写回 (exe_lane_simple)
+    input  logic ms1_to_ws_valid,
+    input  logic [`MS_WS_WIDTH-1:0] ms1_to_ws_bus,
+    output logic ws1_allowin,
+    `endif
     //送到寄存器堆的信息
     output logic regfile_wen,
     output logic [4:0] regfile_addr,
@@ -49,15 +55,49 @@ module wb_stage (
     logic wb_regfile_wen;
     assign {wb_pc, wb_result, wb_dst_addr, wb_regfile_wen} = ms_ws_bus_r;
 
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // ---- Lane1 WB pipeline register (matches lane0 ws_valid timing) ----
+    logic ws1_valid, ws1_ready_go;
+    assign ws1_ready_go = 1'b1;
+    assign ws1_allowin = !ws1_valid || ws1_ready_go;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            ws1_valid <= 1'b0;
+        else if (ws1_allowin)
+            ws1_valid <= ms1_to_ws_valid;
+    end
+
+    logic [`MS_WS_WIDTH-1:0] ms1_ws_bus_r;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            ms1_ws_bus_r <= '0;
+        else if (ms1_to_ws_valid && ws1_allowin)
+            ms1_ws_bus_r <= ms1_to_ws_bus;
+    end
+
+    logic [31:0] wb1_result;
+    logic [4:0]  wb1_dst_addr;
+    logic        wb1_regfile_wen;
+    logic [31:0] wb1_pc;
+    assign {wb1_pc, wb1_result, wb1_dst_addr, wb1_regfile_wen} = ms1_ws_bus_r;
+    `endif
+
     //使用写回端口仲裁器（单发射：直接透传，双发射时处理冲突）
     logic stall_1;
     write_port_arbiter u_write_port_arbiter (
         .wb_wen_0(wb_regfile_wen),
         .wb_addr_0(wb_dst_addr),
         .wb_data_0(wb_result),
-        .wb_wen_1(1'b0),           // 单发射模式下第二指令无
+        `ifdef DUAL_ISSUE_COMMIT_ENABLE
+        .wb_wen_1(wb1_regfile_wen),
+        .wb_addr_1(wb1_dst_addr),
+        .wb_data_1(wb1_result),
+        `else
+        .wb_wen_1(1'b0),
         .wb_addr_1(5'b0),
         .wb_data_1(32'b0),
+        `endif
         .regfile_wen(regfile_wen),
         .regfile_waddr(regfile_addr),
         .regfile_wdata(regfile_wdata),

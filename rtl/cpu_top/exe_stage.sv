@@ -45,6 +45,10 @@ module exe_stage(
     output logic perf_bp_hit,
     output logic perf_bp_miss,
     output logic perf_ex_stall
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    ,
+    output logic [31:0] exe_fwd_result   // EX result for lane1 forwarding
+    `endif
 );
 
     // ============================================================
@@ -415,6 +419,10 @@ module exe_stage(
     );
 
     assign perf_ex_stall = es_valid && !es_ready_go && !es_flush;
+
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    assign exe_fwd_result = exe_result_reg;
+    `endif
 
     // ============================================================
     // Result selection

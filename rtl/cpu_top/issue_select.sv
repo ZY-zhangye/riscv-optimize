@@ -51,14 +51,7 @@ module issue_select (
 );
 
     // ============================================================
-    // Issue decision (P3: always lane0 only)
-    // ============================================================
-    assign issue0_valid = lane0_valid && ds_allowin;
-    assign issue1_valid = 1'b0;  // Lane1 shadow-only in P3
-    assign pop_count = issue0_valid ? 2'd1 : 2'd0;
-
-    // ============================================================
-    // Shadow pairing checks (informational only in P3)
+    // Pairing checks (used for both shadow and actual issue)
     // ============================================================
     assign lane1_simple_alu = lane1_valid &&
                               lane1_is_alu &&
@@ -83,10 +76,36 @@ module issue_select (
                              (lane0_rd_addr != 5'b0) &&
                              (lane0_rd_addr == lane1_rd_addr));
 
+    // P4a: at most one writer per pair (simplifies WB arbitration)
+    logic single_writer;
+    assign single_writer = !(lane0_valid && lane1_valid &&
+                             lane0_regfile_wen && lane1_regfile_wen);
+
+    // Base pairing condition
     assign lane1_can_pair = lane0_valid && lane1_valid &&
                             lane1_simple_alu &&
                             lane0_not_ctrl &&
                             no_raw_hazard &&
-                            no_waw_hazard;
+                            no_waw_hazard &&
+                            single_writer;
+
+    // ============================================================
+    // Issue decision
+    // ============================================================
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // P4+: actual dual-issue when pairing conditions are met
+    logic can_dual_issue;
+    assign can_dual_issue = lane1_can_pair;
+
+    assign issue0_valid = lane0_valid && ds_allowin;
+    assign issue1_valid = can_dual_issue && ds_allowin;
+    assign pop_count = (can_dual_issue && ds_allowin) ? 2'd2 :
+                       (lane0_valid && ds_allowin)     ? 2'd1 : 2'd0;
+    `else
+    // P3: always lane0 only, lane1 is shadow
+    assign issue0_valid = lane0_valid && ds_allowin;
+    assign issue1_valid = 1'b0;
+    assign pop_count = issue0_valid ? 2'd1 : 2'd0;
+    `endif
 
 endmodule : issue_select

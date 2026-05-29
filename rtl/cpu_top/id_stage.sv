@@ -58,6 +58,19 @@ module id_stage (
     output logic [31:0] lane1_pc,
     output logic [31:0] lane1_inst
     `endif
+
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // Lane1 execution pipeline (P4+)
+    ,
+    output logic ds_to_es_valid1,
+    output logic [`DS_ES_WIDTH-1:0] ds_to_es_bus1,
+    output logic ds_flush1,
+    output logic [`EXC_WIDTH-1:0] ds_exc_bus1,
+    // Lane1 EX1 forwarding (from exe_lane_simple, for hazard detection)
+    input  logic [4:0] exe1_dest_addr,
+    input  logic exe1_regfile_wen,
+    input  logic es1_valid
+    `endif
 );
 
     // ============================================================
@@ -230,6 +243,11 @@ module id_stage (
         .mem_dest_addr(mem_dest_addr),
         .mem_regfile_wen(mem_regfile_wen),
         .ms_valid(ms_valid),
+        `ifdef DUAL_ISSUE_COMMIT_ENABLE
+        .exe1_dest_addr(exe1_dest_addr),
+        .exe1_regfile_wen(exe1_regfile_wen),
+        .es1_valid(es1_valid),
+        `endif
         .prev_load(prev_load),
         .ds_valid(ds_valid),
         .src1_fwd(src1_fwd),
@@ -381,6 +399,11 @@ module id_stage (
         .mem_dest_addr(mem_dest_addr),
         .mem_regfile_wen(mem_regfile_wen),
         .ms_valid(ms_valid),
+        `ifdef DUAL_ISSUE_COMMIT_ENABLE
+        .exe1_dest_addr(exe1_dest_addr),
+        .exe1_regfile_wen(exe1_regfile_wen),
+        .es1_valid(es1_valid),
+        `endif
         .prev_load(is_load),        // lane0's is_load (older instruction)
         .ds_valid(ds_valid),
         .src1_fwd(src1_fwd1),
@@ -468,6 +491,40 @@ module id_stage (
 
     assign lane1_pc   = id_pc1;
     assign lane1_inst = id_inst1;
+
+    // ============================================================
+    // P4+: Lane1 execution path
+    // ============================================================
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // ---- Lane1 SRC packet (using lane1's own decode + WB forwarding) ----
+    logic [`SRC_PACKET_WIDTH-1:0] src_packet1;
+    logic [31:0] reg_src1_1, reg_src2_1;
+    assign reg_src1_1 = inst_lui1   ? 32'b0 :
+                        inst_auipc1 ? id_pc1 : src11;
+    assign reg_src2_1 = inst_bitman_imm_inst1 ? {27'b0, id_inst1[24:20]} :
+                        alu_src2_imm_sel1 ? ({32{IMI_valid1}} & imm_i_ext1) |
+                                            ({32{IMU_valid1}} & imm_u_ext1) : src21;
+    assign src_packet1 = {reg_src1_1, reg_src2_1, src1_fwd1, src2_fwd1};
+
+    // ---- Lane1 ds_to_es_bus assembly ----
+    `ifdef Z_BITMAIN_ENABLE
+    assign ds_to_es_bus1 = {bitman_packet1, alu_packet1, mul_packet1, mem_packet1,
+                             csr_packet1, br_jmp_packet1, ctrl_packet1, src_packet1};
+    `else
+    assign ds_to_es_bus1 = {alu_packet1, mul_packet1, mem_packet1,
+                             csr_packet1, br_jmp_packet1, ctrl_packet1, src_packet1};
     `endif
+
+    // ---- Lane1 pipeline handshake ----
+    assign ds_to_es_valid1 = ds_issue1_valid;
+    assign ds_flush1 = exception_flag || br_taken;
+    assign ds_exc_bus1 = pop_exc1;
+
+    // ---- Connect lane1 EX1 forwarding to hazard units ----
+    // (lane0 hazard_unit uses exe1 for lane1→lane0 RAW detection)
+    // (lane1 hazard_unit uses exe1 for lane1→lane1 RAW detection)
+    `endif
+
+    `endif  // DUAL_ISSUE_ENABLE
 
 endmodule

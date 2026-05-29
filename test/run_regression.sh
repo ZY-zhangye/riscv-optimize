@@ -23,6 +23,7 @@ compile() {
         rtl/cpu_top/cpu_top.sv \
         rtl/cpu_top/decode_unit.sv \
         rtl/cpu_top/divider.sv \
+        rtl/cpu_top/exe_lane_simple.sv \
         rtl/cpu_top/exe_stage.sv \
         rtl/cpu_top/forwarding_unit.sv \
         rtl/cpu_top/hazard_unit.sv \
