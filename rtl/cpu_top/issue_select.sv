@@ -53,14 +53,15 @@ module issue_select (
     // ============================================================
     // Pairing checks (used for both shadow and actual issue)
     // ============================================================
+    // P5a: lane1 can be simple ALU or branch/jump (no mul/mem/csr/system)
     assign lane1_simple_alu = lane1_valid &&
-                              lane1_is_alu &&
+                              (lane1_is_alu || lane1_is_br_jmp) &&
                               !lane1_is_mul &&
                               !lane1_is_mem &&
                               !lane1_is_csr &&
-                              !lane1_is_br_jmp &&
                               !lane1_is_system;
 
+    // P4: lane0 still cannot be branch/jump/system when pairing
     assign lane0_not_ctrl = lane0_valid &&
                             !lane0_is_br_jmp &&
                             !lane0_is_system;

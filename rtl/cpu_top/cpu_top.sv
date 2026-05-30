@@ -69,7 +69,7 @@ module cpu_top (
     logic [31:0] lane0_exe_fwd_result;
     `endif
 
-    // Branch / exception
+    // Branch / exception — lane0
     logic br_redirect;
     logic [31:0] br_redirect_target;
     logic bp_update_valid;
@@ -77,6 +77,20 @@ module cpu_top (
     logic bp_update_taken;
     logic [31:0] bp_update_target;
     logic bp_update_is_jalr;
+
+    // Branch / exception — lane1 (P5a)
+    logic lane1_br_redirect;
+    logic [31:0] lane1_br_redirect_target;
+    logic lane1_bp_update_valid;
+    logic [31:0] lane1_bp_update_pc;
+    logic lane1_bp_update_taken;
+    logic [31:0] lane1_bp_update_target;
+    logic lane1_bp_update_is_jalr;
+
+    // Combined redirect (P5a: lane0 takes priority)
+    logic final_redirect;
+    logic [31:0] final_redirect_target;
+
     logic exception_flag;
     logic [31:0] exception_addr;
     logic external_irq_enable;
@@ -139,13 +153,13 @@ module cpu_top (
         .ds_allowin(if_ds_allowin),
         .fs_to_ds_valid(fs_to_ds_valid),
         .fs_to_ds_bus(fs_to_ds_bus),
-        .br_taken(br_redirect),
-        .br_target(br_redirect_target),
-        .bp_update_valid(bp_update_valid),
-        .bp_update_pc(bp_update_pc),
-        .bp_update_taken(bp_update_taken),
-        .bp_update_target(bp_update_target),
-        .bp_update_is_jalr(bp_update_is_jalr),
+        .br_taken(final_redirect),
+        .br_target(final_redirect_target),
+        .bp_update_valid(bp_update_valid || lane1_bp_update_valid),
+        .bp_update_pc(bp_update_valid ? bp_update_pc : lane1_bp_update_pc),
+        .bp_update_taken(bp_update_valid ? bp_update_taken : lane1_bp_update_taken),
+        .bp_update_target(bp_update_valid ? bp_update_target : lane1_bp_update_target),
+        .bp_update_is_jalr(bp_update_valid ? bp_update_is_jalr : lane1_bp_update_is_jalr),
         .fs_exc_bus(fs_exc_bus),
         .exception_flag(exception_flag),
         .exception_addr(exception_addr)
@@ -163,7 +177,11 @@ module cpu_top (
     // ============================================================
     // IF → ID connection: direct (single-issue) or via queue (dual-issue)
     // ============================================================
-    assign queue_flush = br_redirect || exception_flag;
+    assign queue_flush = br_redirect || lane1_br_redirect || exception_flag;
+
+    // P5a: Redirect arbitration — lane0 always takes priority
+    assign final_redirect        = br_redirect || lane1_br_redirect;
+    assign final_redirect_target = br_redirect ? br_redirect_target : lane1_br_redirect_target;
 
     `ifdef DUAL_ISSUE_ENABLE
     // ==== Dual-issue: IF → queue → ID ====
@@ -259,7 +277,7 @@ module cpu_top (
         .mem_dest_addr(mem_dest_addr),
         .mem_regfile_wen(mem_regfile_wen),
         .ms_valid(ms_valid),
-        .br_taken(br_redirect),
+        .br_taken(final_redirect),
         .exception_flag(exception_flag),
         .ds_exc_bus(ds_exc_bus),
         .perf_load_use_stall(perf_load_use_stall)
@@ -332,7 +350,15 @@ module cpu_top (
         .ms1_to_ws_bus(ms1_to_ws_bus),
         .exe1_dest_addr(exe1_dest_addr),
         .exe1_regfile_wen(exe1_regfile_wen),
-        .es1_valid(es1_valid)
+        .es1_valid(es1_valid),
+        // P5a: Lane1 branch redirect
+        .lane1_br_redirect(lane1_br_redirect),
+        .lane1_br_redirect_target(lane1_br_redirect_target),
+        .lane1_bp_update_valid(lane1_bp_update_valid),
+        .lane1_bp_update_pc(lane1_bp_update_pc),
+        .lane1_bp_update_taken(lane1_bp_update_taken),
+        .lane1_bp_update_target(lane1_bp_update_target),
+        .lane1_bp_update_is_jalr(lane1_bp_update_is_jalr)
     );
     `endif
 

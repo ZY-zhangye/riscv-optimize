@@ -1,8 +1,9 @@
 `include "defines.svh"
 
-// Simple ALU execution lane for lane1 in dual-issue.
-// P4: 2-stage pipeline (EX1 + MEM1 bubble) to match lane0's EX+MEM timing.
-// Only supports simple ALU reg/imm + LUI/AUIPC — no branch, load, store, CSR, mul.
+// Lane1 execution unit for dual-issue.
+// P4: Simple ALU only (reg/imm + LUI/AUIPC)
+// P5a: Extended to support branch/jump (branch_controller instantiated)
+// 2-stage pipeline (EX1 + MEM1 bubble) to match lane0's EX+MEM timing.
 module exe_lane_simple (
     input logic clk,
     input logic rst_n,
@@ -29,7 +30,16 @@ module exe_lane_simple (
     // ---- Forwarding outputs (for next instructions) ----
     output logic [4:0] exe1_dest_addr,
     output logic exe1_regfile_wen,
-    output logic es1_valid
+    output logic es1_valid,
+
+    // ---- P5a: Lane1 branch redirect outputs ----
+    output logic lane1_br_redirect,
+    output logic [31:0] lane1_br_redirect_target,
+    output logic lane1_bp_update_valid,
+    output logic [31:0] lane1_bp_update_pc,
+    output logic lane1_bp_update_taken,
+    output logic [31:0] lane1_bp_update_target,
+    output logic lane1_bp_update_is_jalr
 );
 
     // ============================================================
@@ -86,6 +96,17 @@ module exe_lane_simple (
     logic [9:0] alu_op;
     assign alu_op = alu_packet[9:0];
 
+    // BR_JMP — second-level unpack (P5a: used for branch_controller)
+    logic        bp_pred_hit, bp_pred_taken;
+    logic [31:0] bp_pred_target;
+    logic [31:0] br_jmp_target;
+    logic [31:0] br_jmp_imm;
+    logic [5:0]  br_jmp_opcode;
+    logic        is_jal, is_jalr;
+    assign {bp_pred_hit, bp_pred_taken, bp_pred_target,
+            br_jmp_target, br_jmp_imm, br_jmp_opcode,
+            is_jal, is_jalr} = br_jmp_packet;
+
     // CTRL
     logic is_alu, is_mul, is_mem, is_csr, is_br_jmp;
     logic [4:0] rd_addr;
@@ -126,11 +147,50 @@ module exe_lane_simple (
         .alu_result(alu_result)
     );
 
-    // ---- Result selection (ALU or PC+4 for JAL/BR placeholder) ----
+    // ---- P5a: Branch controller (reuses lane0's branch_controller) ----
+    logic lane1_br_taken;
+    logic [31:0] lane1_br_target;
+    logic lane1_perf_branch_valid;
+    logic lane1_perf_branch_mispredict;
+    logic lane1_perf_bp_hit;
+    logic lane1_perf_bp_miss;
+
+    branch_controller u_branch_controller1 (
+        .bp_pred_hit(bp_pred_hit),
+        .bp_pred_taken(bp_pred_taken),
+        .bp_pred_target(bp_pred_target),
+        .br_jmp_target(br_jmp_target),
+        .br_jmp_imm(br_jmp_imm),
+        .br_jmp_opcode(br_jmp_opcode),
+        .is_jal(is_jal),
+        .is_jalr(is_jalr),
+        .src1(src1),
+        .src2(src2),
+        .exe_pc(exe_pc),
+        .es_flush(es1_flush),
+        .es_valid(es1_valid),
+        .br_taken(lane1_br_taken),
+        .br_target(lane1_br_target),
+        .br_redirect(lane1_br_redirect),
+        .br_redirect_target(lane1_br_redirect_target),
+        .bp_update_valid(lane1_bp_update_valid),
+        .bp_update_pc(lane1_bp_update_pc),
+        .bp_update_taken(lane1_bp_update_taken),
+        .bp_update_target(lane1_bp_update_target),
+        .bp_update_is_jalr(lane1_bp_update_is_jalr),
+        .perf_branch_valid(lane1_perf_branch_valid),
+        .perf_branch_mispredict(lane1_perf_branch_mispredict),
+        .perf_bp_hit(lane1_perf_bp_hit),
+        .perf_bp_miss(lane1_perf_bp_miss)
+    );
+
+    // ---- Result selection (ALU or PC+4 for JAL/JALR link) ----
     logic [31:0] exe1_result;
     always_comb begin
         if (es1_flush)
             exe1_result = 32'b0;
+        else if (is_br_jmp)
+            exe1_result = exe_pc + 32'd4;  // JAL/JALR link address
         else
             exe1_result = alu_result;
     end
