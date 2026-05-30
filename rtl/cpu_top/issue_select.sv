@@ -43,7 +43,7 @@ module issue_select (
     output logic [1:0] pop_count,   // how many to pop from queue (0/1/2)
 
     // ---- Shadow signals (P3 debug) ----
-    output logic lane1_simple_alu,  // lane1 is simple ALU only
+    output logic lane1_simple_alu,  // lane1 is simple ALU/branch/mem
     output logic lane0_not_ctrl,    // lane0 not branch/jump/system
     output logic no_raw_hazard,     // lane1 doesn't read lane0's rd
     output logic no_waw_hazard,     // lane0 and lane1 don't write same rd
@@ -53,11 +53,10 @@ module issue_select (
     // ============================================================
     // Pairing checks (used for both shadow and actual issue)
     // ============================================================
-    // P5a: lane1 can be simple ALU or branch/jump (no mul/mem/csr/system)
+    // P5b: lane1 can be ALU, branch, or store (no mul/csr/system)
     assign lane1_simple_alu = lane1_valid &&
-                              (lane1_is_alu || lane1_is_br_jmp) &&
+                              (lane1_is_alu || lane1_is_br_jmp || lane1_is_mem) &&
                               !lane1_is_mul &&
-                              !lane1_is_mem &&
                               !lane1_is_csr &&
                               !lane1_is_system;
 
@@ -65,6 +64,11 @@ module issue_select (
     assign lane0_not_ctrl = lane0_valid &&
                             !lane0_is_br_jmp &&
                             !lane0_is_system;
+
+    // P5b: at most one memory operation per pair (single LSU)
+    logic no_dual_mem;
+    assign no_dual_mem = !(lane0_valid && lane1_valid &&
+                            lane0_is_mem && lane1_is_mem);
 
     // RAW: lane1 reads a register that lane0 writes (intra-pair RAW)
     assign no_raw_hazard = !(lane0_valid && lane0_regfile_wen && (lane0_rd_addr != 5'b0) && lane1_valid &&
@@ -84,10 +88,11 @@ module issue_select (
                              lane0_regfile_wen && (lane0_rd_addr != 5'b0) &&
                              lane1_regfile_wen && (lane1_rd_addr != 5'b0));
 
-    // Base pairing condition
+    // Base pairing condition — P5b adds no_dual_mem
     assign lane1_can_pair = lane0_valid && lane1_valid &&
                             lane1_simple_alu &&
                             lane0_not_ctrl &&
+                            no_dual_mem &&
                             no_raw_hazard &&
                             no_waw_hazard &&
                             single_writer;

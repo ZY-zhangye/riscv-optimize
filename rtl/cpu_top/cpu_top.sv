@@ -67,6 +67,12 @@ module cpu_top (
     logic [`MS_WS_WIDTH-1:0] ms1_to_ws_bus;
     logic ws1_allowin;
     logic [31:0] lane0_exe_fwd_result;
+    // P5b: Lane1 dmem interface
+    logic [31:0] lane1_dmem_addr;
+    logic [31:0] lane1_dmem_wdata;
+    logic [3:0]  lane1_dmem_wen;
+    logic        lane1_dmem_en;
+    logic        lane1_is_mem_op;
     `endif
 
     // Branch / exception — lane0
@@ -134,6 +140,12 @@ module cpu_top (
     logic [31:0] br_target;
     logic perf_branch_valid, perf_branch_mispredict;
     logic perf_bp_hit, perf_bp_miss, perf_ex_stall;
+
+    // P5b: Lane0 dmem intermediate signals (for mux with lane1)
+    logic [31:0] lane0_dmem_addr;
+    logic [31:0] lane0_dmem_wdata;
+    logic [3:0]  lane0_dmem_wen;
+    logic        lane0_dmem_en;
 
     // MEM stage
     logic ms_valid;
@@ -303,10 +315,10 @@ module cpu_top (
         .es_to_ms_valid(es_to_ms_valid),
         .es_flush(es_flush),
         .es_to_ms_bus(es_to_ms_bus),
-        .dmem_addr(dmem_addr),
-        .dmem_wen(dmem_wen),
-        .dmem_en(dmem_en),
-        .dmem_wdata(dmem_wdata),
+        .dmem_addr(lane0_dmem_addr),
+        .dmem_wen(lane0_dmem_wen),
+        .dmem_en(lane0_dmem_en),
+        .dmem_wdata(lane0_dmem_wdata),
         .exe_dest_addr(exe_dest_addr),
         .exe_regfile_wen(exe_regfile_wen),
         .exe_csr_addr(exe_csr_addr),
@@ -335,6 +347,22 @@ module cpu_top (
         .exe_fwd_result(lane0_exe_fwd_result)
         `endif
     );
+
+    // ============================================================
+    // P5b: dmem port mux — lane0 priority
+    // ============================================================
+    `ifdef DUAL_ISSUE_COMMIT_ENABLE
+    // Lane0 has priority for the shared dmem port
+    assign dmem_addr  = lane0_dmem_en ? lane0_dmem_addr  : lane1_dmem_addr;
+    assign dmem_wdata = lane0_dmem_en ? lane0_dmem_wdata : lane1_dmem_wdata;
+    assign dmem_wen   = lane0_dmem_en ? lane0_dmem_wen   : lane1_dmem_wen;
+    assign dmem_en    = lane0_dmem_en | lane1_dmem_en;
+    `else
+    assign dmem_addr  = lane0_dmem_addr;
+    assign dmem_wdata = lane0_dmem_wdata;
+    assign dmem_wen   = lane0_dmem_wen;
+    assign dmem_en    = lane0_dmem_en;
+    `endif
 
     `ifdef DUAL_ISSUE_COMMIT_ENABLE
     // ============================================================
@@ -369,7 +397,13 @@ module cpu_top (
         .lane1_perf_branch_valid(lane1_perf_branch_valid),
         .lane1_perf_branch_mispredict(lane1_perf_branch_mispredict),
         .lane1_perf_bp_hit(lane1_perf_bp_hit),
-        .lane1_perf_bp_miss(lane1_perf_bp_miss)
+        .lane1_perf_bp_miss(lane1_perf_bp_miss),
+        // P5b: Lane1 dmem interface
+        .lane1_dmem_addr(lane1_dmem_addr),
+        .lane1_dmem_wdata(lane1_dmem_wdata),
+        .lane1_dmem_wen(lane1_dmem_wen),
+        .lane1_dmem_en(lane1_dmem_en),
+        .lane1_is_mem_op(lane1_is_mem_op)
     );
     `endif
 

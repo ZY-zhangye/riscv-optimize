@@ -44,7 +44,14 @@ module exe_lane_simple (
     output logic lane1_perf_branch_valid,
     output logic lane1_perf_branch_mispredict,
     output logic lane1_perf_bp_hit,
-    output logic lane1_perf_bp_miss
+    output logic lane1_perf_bp_miss,
+
+    // ---- P5b: Lane1 dmem interface (store support) ----
+    output logic [31:0] lane1_dmem_addr,
+    output logic [31:0] lane1_dmem_wdata,
+    output logic [3:0]  lane1_dmem_wen,
+    output logic        lane1_dmem_en,
+    output logic        lane1_is_mem_op      // lane1 is executing a memory op
 );
 
     // ============================================================
@@ -128,6 +135,12 @@ module exe_lane_simple (
             is_csr, is_br_jmp, rd_addr, regfile_wen, is_multicycle} = ctrl_packet;
     `endif
 
+    // MEM — second-level unpack (P5b: used for store address/data)
+    logic [31:0] mem_imm;
+    logic [4:0]  mem_op;
+    logic        is_store;
+    assign {mem_imm, mem_op, is_store} = mem_packet;
+
     // SRC
     logic [31:0] reg_src1, reg_src2;
     logic [1:0] src1_fwd, src2_fwd;
@@ -192,9 +205,55 @@ module exe_lane_simple (
             exe1_result = 32'b0;
         else if (is_br_jmp)
             exe1_result = exe_pc + 32'd4;  // JAL/JALR link address
+        else if (is_mem)
+            exe1_result = src1 + mem_imm;   // load/store address
         else
             exe1_result = alu_result;
     end
+
+    // ---- P5b: Lane1 dmem store interface ----
+    logic inst_sb1, inst_sh1, inst_sw1;
+    assign inst_sb1 = mem_op[4] & is_store;
+    assign inst_sh1 = mem_op[3] & is_store;
+    assign inst_sw1 = mem_op[2] & is_store;
+
+    // Byte/halfword store data replication
+    logic [31:0] lane1_store_data;
+    assign lane1_store_data = inst_sb1 ? {4{src2[7:0]}} :
+                              inst_sh1 ? {2{src2[15:0]}} : src2;
+
+    // Store byte-enable generation (same as exe_stage)
+    logic [3:0] sb_wen1, sh_wen1;
+    always_comb begin
+        case (exe1_result[1:0])
+            2'b00: sb_wen1 = 4'b0001;
+            2'b01: sb_wen1 = 4'b0010;
+            2'b10: sb_wen1 = 4'b0100;
+            default: sb_wen1 = 4'b1000;
+        endcase
+    end
+    always_comb begin
+        case (exe1_result[1])
+            1'b0: sh_wen1 = 4'b0011;
+            default: sh_wen1 = 4'b1100;
+        endcase
+    end
+    always_comb begin
+        lane1_dmem_wen = 4'b0000;
+        if (!es1_flush) begin
+            unique case (1'b1)
+                inst_sb1: lane1_dmem_wen = sb_wen1;
+                inst_sh1: lane1_dmem_wen = sh_wen1;
+                inst_sw1: lane1_dmem_wen = 4'b1111;
+                default:  lane1_dmem_wen = 4'b0000;
+            endcase
+        end
+    end
+
+    assign lane1_dmem_addr = exe1_result;
+    assign lane1_dmem_wdata = lane1_store_data;
+    assign lane1_dmem_en   = |mem_op && !es1_flush;
+    assign lane1_is_mem_op = is_mem && es1_valid && !es1_flush;
 
     // ---- Latch EX1 result for next stage ----
     logic [31:0] exe1_result_reg;
