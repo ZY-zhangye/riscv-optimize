@@ -114,7 +114,9 @@ module tb_cpu_top_simple #(
     wire es1_flush = cpu_top_inst.u_exe_lane_simple.es1_flush;
     wire lane1_can_pair = cpu_top_inst.lane1_can_pair;
     wire issue1_valid = cpu_top_inst.u_id_stage.u_issue_select.issue1_valid;
-    wire [31:0] exe1_result = cpu_top_inst.u_exe_lane_simple.exe1_result_reg;
+    // ms1_to_ws_bus = {pc[31:0], result[31:0], rd[4:0], wen}
+    // result is bits [MS_WS_WIDTH-33 : MS_WS_WIDTH-64] = bits [37:6]
+    wire [31:0] exe1_result = cpu_top_inst.u_exe_lane_simple.ms1_to_ws_bus[`MS_WS_WIDTH-33:`MS_WS_WIDTH-64];
     wire [31:0] lane1_inst = cpu_top_inst.lane1_inst;
     wire [1:0] pop_count = cpu_top_inst.id_pop_count;
 

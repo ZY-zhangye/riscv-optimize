@@ -169,24 +169,60 @@ module exe_lane_simple (
     `endif
     assign {input_mem_imm, input_mem_op, input_is_store} = input_mem_packet;
 
-    // Single always_ff: EX1 entry capture + EX1→MEM1 shift (uses mem_op_ex1 OLD)
+    // Forward-declare pipeline registers used in merged always_ff below
+    logic [31:0] exe1_result;
+    logic [31:0] exe1_result_reg;
+    logic [4:0]  exe1_rd_addr_reg;
+    logic        exe1_regfile_wen_reg;
+    logic [31:0] exe1_pc_reg;
+    logic        exe1_flush_reg;
+    logic [1:0]  exe1_addr_low_reg;
+    logic [31:0] ms1_result;
+    logic [4:0]  ms1_rd_addr;
+    logic        ms1_regfile_wen;
+    logic [31:0] ms1_pc;
+
+    // Merged always_ff: EX1 entry + all pipeline shifts
+    // All mem control and result pipelines in ONE block for deterministic ordering
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             mem_op_ex1 <= '0;
             is_store_ex1 <= 1'b0;
             exe1_mem_op_reg <= '0;
             exe1_is_store_reg <= 1'b0;
+            exe1_result_reg <= '0;
+            exe1_rd_addr_reg <= '0;
+            exe1_regfile_wen_reg <= 1'b0;
+            exe1_pc_reg <= '0;
+            exe1_flush_reg <= 1'b0;
+            exe1_addr_low_reg <= '0;
+            ms1_result <= '0;
+            ms1_rd_addr <= '0;
+            ms1_regfile_wen <= 1'b0;
+            ms1_pc <= '0;
         end else begin
-            // Capture at EX1 entry from INPUT bus
+            // Stage 0: capture at EX1 entry
             if (ds_to_es_valid && es_allowin) begin
                 mem_op_ex1 <= input_mem_op;
                 is_store_ex1 <= input_is_store;
             end
-            // When instruction leaves EX1 for MEM1:
-            // mem_op_ex1 OLD = this instruction's mem_op (set at its EX1 entry)
+            // Stage 0→1: EX1→MEM1 shift (mem_op_ex1 OLD = this inst's value)
             if (es1_valid && es1_ready_go) begin
                 exe1_mem_op_reg <= mem_op_ex1;
                 exe1_is_store_reg <= is_store_ex1;
+                exe1_result_reg <= exe1_result;
+                exe1_rd_addr_reg <= rd_addr;
+                exe1_regfile_wen_reg <= regfile_wen && !es1_flush;
+                exe1_pc_reg <= exe_pc;
+                exe1_flush_reg <= es1_flush;
+                exe1_addr_low_reg <= exe1_result[1:0];
+            end
+            // Stage 1→2: MEM1→WB shift
+            if ((es1_valid && es1_ready_go) && ms1_allowin) begin
+                ms1_result <= exe1_result_reg;
+                ms1_rd_addr <= exe1_rd_addr_reg;
+                ms1_regfile_wen <= exe1_regfile_wen_reg && !exe1_flush_reg;
+                ms1_pc <= exe1_pc_reg;
             end
         end
     end
@@ -249,7 +285,6 @@ module exe_lane_simple (
     );
 
     // ---- Result selection (ALU or PC+4 for JAL/JALR link) ----
-    logic [31:0] exe1_result;
     always_comb begin
         if (es1_flush)
             exe1_result = 32'b0;
@@ -305,29 +340,7 @@ module exe_lane_simple (
     assign lane1_dmem_en   = |mem_op && !es1_flush;
     assign lane1_is_mem_op = is_mem && es1_valid && !es1_flush;
 
-    // ---- Latch EX1 result + MEM1 pipeline (merged single always_ff) ----
-    // All pipeline stages in ONE always_ff. Blocking assignments (=) are used
-    // for signals consumed by later stages in the SAME always_ff to eliminate
-    // cross-block NBA ordering races.
-    logic [31:0] exe1_result_reg;
-    logic [4:0]  exe1_rd_addr_reg;
-    logic        exe1_regfile_wen_reg;
-    logic [31:0] exe1_pc_reg;
-    logic        exe1_flush_reg;
-    logic [1:0]  exe1_addr_low_reg;
 
-    // MEM1 pipeline registers
-    logic [31:0] ms1_result;
-    logic [4:0]  ms1_rd_addr;
-    logic        ms1_regfile_wen;
-    logic [31:0] ms1_pc;
-
-    // Register dmem_rdata inside this module to eliminate cross-module NBA race
-    logic [31:0] dmem_rdata_reg;
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) dmem_rdata_reg <= '0;
-        else dmem_rdata_reg <= dmem_rdata;
-    end
 
     // P5b: Load data extraction signals (combinational from registered values)
     logic load_lb1, load_lh1, load_lw1, load_lbu1, load_lhu1;
@@ -335,8 +348,6 @@ module exe_lane_simple (
     logic [7:0]  load_byte1;
     logic [15:0] load_half1;
     logic [31:0] load_data1;
-    logic [31:0] ms1_result_next;
-    logic [31:0] ms1_dmem_data_mux;
 
     // Combinational load data extraction (from registered dmem_rdata at posedge)
     assign load_lb1  = exe1_mem_op_reg[4] & ~exe1_is_store_reg;
@@ -349,78 +360,29 @@ module exe_lane_simple (
     // Byte selection from dmem_rdata
     always_comb begin
         unique case (exe1_addr_low_reg)
-            2'b00: load_byte1 = dmem_rdata_reg[7:0];
-            2'b01: load_byte1 = dmem_rdata_reg[15:8];
-            2'b10: load_byte1 = dmem_rdata_reg[23:16];
-            default: load_byte1 = dmem_rdata_reg[31:24];
+            2'b00: load_byte1 = dmem_rdata[7:0];
+            2'b01: load_byte1 = dmem_rdata[15:8];
+            2'b10: load_byte1 = dmem_rdata[23:16];
+            default: load_byte1 = dmem_rdata[31:24];
         endcase
     end
     always_comb begin
         unique case (exe1_addr_low_reg[1])
-            1'b0: load_half1 = dmem_rdata_reg[15:0];
-            default: load_half1 = dmem_rdata_reg[31:16];
+            1'b0: load_half1 = dmem_rdata[15:0];
+            default: load_half1 = dmem_rdata[31:16];
         endcase
     end
     always_comb begin
-        load_data1 = dmem_rdata_reg;
+        load_data1 = dmem_rdata;
         unique case (1'b1)
             load_lb1:  load_data1 = {{24{load_byte1[7]}}, load_byte1};
             load_lbu1: load_data1 = {24'b0, load_byte1};
             load_lh1:  load_data1 = {{16{load_half1[15]}}, load_half1};
             load_lhu1: load_data1 = {16'b0, load_half1};
-            default:   load_data1 = dmem_rdata_reg;
+            default:   load_data1 = dmem_rdata;
         endcase
     end
 
-    // SINGLE always_ff: all pipeline stages + inter-stage blocking assignments
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            // EX1→MEM1 pipeline
-            exe1_result_reg <= '0;
-            exe1_rd_addr_reg <= '0;
-            exe1_regfile_wen_reg <= 1'b0;
-            exe1_pc_reg <= '0;
-            exe1_flush_reg <= 1'b0;
-            exe1_addr_low_reg <= '0;
-            // MEM1→WB pipeline
-            ms1_result <= '0;
-            ms1_rd_addr <= '0;
-            ms1_regfile_wen <= 1'b0;
-            ms1_pc <= '0;
-        end else begin
-            // === EX1→MEM1 shift (blocking for immediate use below) ===
-            if (es1_valid && es1_ready_go) begin
-                exe1_result_reg = exe1_result;
-                exe1_rd_addr_reg = rd_addr;
-                exe1_regfile_wen_reg = regfile_wen && !es1_flush;
-                exe1_pc_reg = exe_pc;
-                exe1_flush_reg = es1_flush;
-                exe1_addr_low_reg = exe1_result[1:0];
-                // Load control: use mem_op_ex1 (set at EX1 entry, OLD=this inst)
-                exe1_mem_op_reg = mem_op_ex1;
-                exe1_is_store_reg = is_store_ex1;
-            end else begin
-                exe1_result_reg <= exe1_result_reg;
-                exe1_rd_addr_reg <= exe1_rd_addr_reg;
-                exe1_regfile_wen_reg <= exe1_regfile_wen_reg;
-                exe1_pc_reg <= exe1_pc_reg;
-                exe1_flush_reg <= exe1_flush_reg;
-                exe1_addr_low_reg <= exe1_addr_low_reg;
-                exe1_mem_op_reg <= exe1_mem_op_reg;
-                exe1_is_store_reg <= exe1_is_store_reg;
-            end
-
-            // === MEM1→WB: capture load data or EX1 result ===
-            // Now exe1_mem_op_reg has the CORRECT value (set by blocking = above)
-            ms1_dmem_data_mux = is_load1 ? load_data1 : exe1_result_reg;
-            if ((es1_valid && es1_ready_go) && ms1_allowin) begin
-                ms1_result <= ms1_dmem_data_mux;
-                ms1_rd_addr <= exe1_rd_addr_reg;
-                ms1_regfile_wen <= exe1_regfile_wen_reg && !exe1_flush_reg;
-                ms1_pc <= exe1_pc_reg;
-            end
-        end
-    end
 
     // ---- MEM1 allowin / valid (forward-declared at line 64) ----
     assign ms1_ready_go = 1'b1;
@@ -434,10 +396,12 @@ module exe_lane_simple (
             ms1_valid <= (es1_valid && es1_ready_go);
     end
 
-    // Output bus — ms1_result correctly captured in merged always_ff
+    // Output bus — combinational mux for loads (like mem_stage uses mem_result)
+    // In MEM1: ms1_valid=1, is_load1 gates whether load_data1 or ms1_result is used.
+    // load_data1 is combinational from dmem_rdata (registered memory output).
     assign ms1_to_ws_bus = {
         ms1_pc,
-        ms1_result,
+        (ms1_valid && is_load1) ? load_data1 : ms1_result,
         ms1_rd_addr,
         ms1_regfile_wen
     };
