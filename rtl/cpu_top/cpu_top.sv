@@ -79,13 +79,14 @@ module cpu_top (
     logic bp_update_is_jalr;
 
     // Branch / exception — lane1 (P5a)
-    logic lane1_br_redirect;
-    logic [31:0] lane1_br_redirect_target;
-    logic lane1_bp_update_valid;
-    logic [31:0] lane1_bp_update_pc;
-    logic lane1_bp_update_taken;
-    logic [31:0] lane1_bp_update_target;
-    logic lane1_bp_update_is_jalr;
+    // Default to 0 — driven by exe_lane_simple when DUAL_ISSUE_COMMIT_ENABLE
+    logic lane1_br_redirect = 1'b0;
+    logic [31:0] lane1_br_redirect_target = 32'b0;
+    logic lane1_bp_update_valid = 1'b0;
+    logic [31:0] lane1_bp_update_pc = 32'b0;
+    logic lane1_bp_update_taken = 1'b0;
+    logic [31:0] lane1_bp_update_target = 32'b0;
+    logic lane1_bp_update_is_jalr = 1'b0;
 
     // Combined redirect (P5a: lane0 takes priority)
     logic final_redirect;
