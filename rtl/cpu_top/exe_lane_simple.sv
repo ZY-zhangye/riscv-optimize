@@ -397,13 +397,13 @@ module exe_lane_simple (
     end
 
     // Output bus — combinational mux for loads (like mem_stage uses mem_result)
-    // In MEM1: ms1_valid=1, is_load1 gates whether load_data1 or ms1_result is used.
+    // Output bus uses exe1_*_reg directly (stable in MEM1, no pipeline race)
     // load_data1 is combinational from dmem_rdata (registered memory output).
     assign ms1_to_ws_bus = {
-        ms1_pc,
-        (ms1_valid && is_load1) ? load_data1 : ms1_result,
-        ms1_rd_addr,
-        ms1_regfile_wen
+        exe1_pc_reg,
+        (ms1_valid && is_load1) ? load_data1 : exe1_result_reg,
+        exe1_rd_addr_reg,
+        exe1_regfile_wen_reg && !exe1_flush_reg
     };
 
 endmodule : exe_lane_simple

@@ -101,7 +101,7 @@ module tb_cpu_top_simple #(
         end
     end
 
-    // ---- P5a: Redirect / lane1 branch signal monitor ----
+    // ---- P5a+P5b signal monitor ----
     `ifdef DUAL_ISSUE_COMMIT_ENABLE
     wire lane1_br_redirect = cpu_top_inst.lane1_br_redirect;
     wire [31:0] lane1_br_target = cpu_top_inst.lane1_br_redirect_target;

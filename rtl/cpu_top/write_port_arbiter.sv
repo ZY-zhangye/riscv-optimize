@@ -23,18 +23,23 @@ module write_port_arbiter (
     // - 如果两条指令写同一寄存器，第二条指令停顿
     // - 否则需要分离写操作（需要多个写端口）
 
+    // Effective write enable (x0 writes are no-ops)
+    logic wb_wen_0_eff, wb_wen_1_eff;
+    assign wb_wen_0_eff = wb_wen_0 && (wb_addr_0 != 5'b0);
+    assign wb_wen_1_eff = wb_wen_1 && (wb_addr_1 != 5'b0);
+
     logic conflict;
-    assign conflict = wb_wen_0 && wb_wen_1 && (wb_addr_0 == wb_addr_1) && (wb_addr_0 != 5'b0);
+    assign conflict = wb_wen_0_eff && wb_wen_1_eff && (wb_addr_0 == wb_addr_1);
 
     always_comb begin
-        // Lane0 has priority (older instruction). If lane0 doesn't write,
-        // lane1's write passes through.
-        if (wb_wen_0) begin
+        // Lane0 has priority (older instruction) for real writes.
+        // x0 writes are no-ops and don't block lane1.
+        if (wb_wen_0_eff) begin
             regfile_wen   = wb_wen_0;
             regfile_waddr = wb_addr_0;
             regfile_wdata = wb_data_0;
             stall_1 = conflict;
-        end else if (wb_wen_1) begin
+        end else if (wb_wen_1_eff) begin
             regfile_wen   = wb_wen_1;
             regfile_waddr = wb_addr_1;
             regfile_wdata = wb_data_1;
