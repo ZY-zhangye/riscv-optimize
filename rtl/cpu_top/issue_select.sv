@@ -78,9 +78,11 @@ module issue_select (
                              (lane0_rd_addr == lane1_rd_addr));
 
     // P4a: at most one writer per pair (simplifies WB arbitration)
+    // P5a fix: x0 writes are no-ops, exclude from single_writer check
     logic single_writer;
     assign single_writer = !(lane0_valid && lane1_valid &&
-                             lane0_regfile_wen && lane1_regfile_wen);
+                             lane0_regfile_wen && (lane0_rd_addr != 5'b0) &&
+                             lane1_regfile_wen && (lane1_rd_addr != 5'b0));
 
     // Base pairing condition
     assign lane1_can_pair = lane0_valid && lane1_valid &&

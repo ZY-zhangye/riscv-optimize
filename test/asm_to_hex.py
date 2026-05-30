@@ -320,6 +320,16 @@ class Assembler:
         elif mnemonic == 'mv':
             return encode_r(parse_reg(a[0]), 0, parse_reg(a[1]), F3_ADD, 0) | OP
 
+        # === M-extension ===
+        elif mnemonic == 'mul':
+            return encode_r(parse_reg(a[0]), parse_reg(a[1]), parse_reg(a[2]), F3_ADD, 0b0000001) | OP
+        elif mnemonic == 'mulh':
+            return encode_r(parse_reg(a[0]), parse_reg(a[1]), parse_reg(a[2]), F3_SLL, 0b0000001) | OP
+        elif mnemonic == 'mulhu':
+            return encode_r(parse_reg(a[0]), parse_reg(a[1]), parse_reg(a[2]), F3_SLT, 0b0000001) | OP
+        elif mnemonic == 'div':
+            return encode_r(parse_reg(a[0]), parse_reg(a[1]), parse_reg(a[2]), F3_SRL, 0b0000001) | OP
+
         elif mnemonic == 'ecall':
             return 0x00000073
         elif mnemonic == 'ebreak':
