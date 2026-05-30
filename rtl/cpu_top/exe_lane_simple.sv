@@ -39,7 +39,12 @@ module exe_lane_simple (
     output logic [31:0] lane1_bp_update_pc,
     output logic lane1_bp_update_taken,
     output logic [31:0] lane1_bp_update_target,
-    output logic lane1_bp_update_is_jalr
+    output logic lane1_bp_update_is_jalr,
+    // ---- P5a: Lane1 performance counters ----
+    output logic lane1_perf_branch_valid,
+    output logic lane1_perf_branch_mispredict,
+    output logic lane1_perf_bp_hit,
+    output logic lane1_perf_bp_miss
 );
 
     // ============================================================
@@ -150,10 +155,6 @@ module exe_lane_simple (
     // ---- P5a: Branch controller (reuses lane0's branch_controller) ----
     logic lane1_br_taken;
     logic [31:0] lane1_br_target;
-    logic lane1_perf_branch_valid;
-    logic lane1_perf_branch_mispredict;
-    logic lane1_perf_bp_hit;
-    logic lane1_perf_bp_miss;
 
     branch_controller u_branch_controller1 (
         .bp_pred_hit(bp_pred_hit),

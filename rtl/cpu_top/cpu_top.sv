@@ -87,6 +87,11 @@ module cpu_top (
     logic lane1_bp_update_taken = 1'b0;
     logic [31:0] lane1_bp_update_target = 32'b0;
     logic lane1_bp_update_is_jalr = 1'b0;
+    // P5a: Lane1 performance counters
+    logic lane1_perf_branch_valid = 1'b0;
+    logic lane1_perf_branch_mispredict = 1'b0;
+    logic lane1_perf_bp_hit = 1'b0;
+    logic lane1_perf_bp_miss = 1'b0;
 
     // Combined redirect (P5a: lane0 takes priority)
     logic final_redirect;
@@ -359,7 +364,12 @@ module cpu_top (
         .lane1_bp_update_pc(lane1_bp_update_pc),
         .lane1_bp_update_taken(lane1_bp_update_taken),
         .lane1_bp_update_target(lane1_bp_update_target),
-        .lane1_bp_update_is_jalr(lane1_bp_update_is_jalr)
+        .lane1_bp_update_is_jalr(lane1_bp_update_is_jalr),
+        // P5a: Lane1 performance counters
+        .lane1_perf_branch_valid(lane1_perf_branch_valid),
+        .lane1_perf_branch_mispredict(lane1_perf_branch_mispredict),
+        .lane1_perf_bp_hit(lane1_perf_bp_hit),
+        .lane1_perf_bp_miss(lane1_perf_bp_miss)
     );
     `endif
 
@@ -456,10 +466,10 @@ module cpu_top (
         .exception_code(exception_code),
         .exception_mtval(exception_mtval),
         .perf_retire_valid(perf_retire_valid),
-        .perf_branch_valid(perf_branch_valid),
-        .perf_branch_mispredict(perf_branch_mispredict),
-        .perf_bp_hit(perf_bp_hit),
-        .perf_bp_miss(perf_bp_miss),
+        .perf_branch_valid(perf_branch_valid || lane1_perf_branch_valid),
+        .perf_branch_mispredict(perf_branch_mispredict || lane1_perf_branch_mispredict),
+        .perf_bp_hit(perf_bp_hit || lane1_perf_bp_hit),
+        .perf_bp_miss(perf_bp_miss || lane1_perf_bp_miss),
         .perf_load_use_stall(perf_load_use_stall),
         .perf_ex_stall(perf_ex_stall),
         .exception_flag(exception_flag),
