@@ -244,8 +244,25 @@ class Assembler:
 
         # === I-type Load ===
         elif mnemonic == 'lw':
-            imm = parse_imm(a[1])
-            return encode_i(parse_reg(a[0]), parse_reg(a[1].split('(')[1].rstrip(')')), imm) | (F3_LW << 12) | LOAD
+            imm_str, rs1_str = a[1].split('(')
+            return encode_i(parse_reg(a[0]), parse_reg(rs1_str.rstrip(')')),
+                           parse_imm(imm_str)) | (F3_LW << 12) | LOAD
+        elif mnemonic == 'lh':
+            imm_str, rs1_str = a[1].split('(')
+            return encode_i(parse_reg(a[0]), parse_reg(rs1_str.rstrip(')')),
+                           parse_imm(imm_str)) | (F3_LH << 12) | LOAD
+        elif mnemonic == 'lb':
+            imm_str, rs1_str = a[1].split('(')
+            return encode_i(parse_reg(a[0]), parse_reg(rs1_str.rstrip(')')),
+                           parse_imm(imm_str)) | (F3_LB << 12) | LOAD
+        elif mnemonic == 'lhu':
+            imm_str, rs1_str = a[1].split('(')
+            return encode_i(parse_reg(a[0]), parse_reg(rs1_str.rstrip(')')),
+                           parse_imm(imm_str)) | (F3_LHU << 12) | LOAD
+        elif mnemonic == 'lbu':
+            imm_str, rs1_str = a[1].split('(')
+            return encode_i(parse_reg(a[0]), parse_reg(rs1_str.rstrip(')')),
+                           parse_imm(imm_str)) | (F3_LBU << 12) | LOAD
 
         # === JALR ===
         elif mnemonic == 'jalr':

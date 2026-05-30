@@ -403,7 +403,9 @@ module cpu_top (
         .lane1_dmem_wdata(lane1_dmem_wdata),
         .lane1_dmem_wen(lane1_dmem_wen),
         .lane1_dmem_en(lane1_dmem_en),
-        .lane1_is_mem_op(lane1_is_mem_op)
+        .lane1_is_mem_op(lane1_is_mem_op),
+        // P5b: dmem read data for lane1 loads
+        .dmem_rdata(dmem_rdata)
     );
     `endif
 
