@@ -28,6 +28,15 @@ compile.log
 *.xpr
 *.str
 
+# Test hex files (large, not tracked)
+hex/
+
+# ModelSim / Questa artifacts
+work/
+transcript
+*.wlf
+vsim.wlf
+
 # Backup files
 *.orig
 *.bak

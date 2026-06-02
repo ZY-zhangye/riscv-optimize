@@ -1,194 +1,138 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
-REM === instructions definition ===
+REM ============================================================
+REM RISC-V CPU regression — ModelSim/Questa flow
+REM Uses tb_cpu_top_simple (cpu_top only, no Xilinx IP / PLL)
+REM ============================================================
+REM Usage: run_all.bat [base|all]
+REM ============================================================
+
 set UI_INSTS=lh lhu sh sb lb lbu sw lw add addi sub and andi or ori xor xori sll srl sra slli srli srai slt slti jalr sltu sltiu beq bne blt bge bltu bgeu jal lui auipc
 set MI_INSTS=csr scall sbreak ma_fetch
 set UM_INSTS=mul mulh mulhu mulhsu div divu rem remu
 
-REM === currently implemented Z-bitman instructions ===
-set ZBA_INSTS=sh1add sh2add sh3add
-set ZBB_INSTS=andn orn xnor min max minu maxu sext_b sext_h zext_h orc_b rev8
-set ZBKB_INSTS=brev8 pack packh zip unzip
-set ZBS_INSTS=bclr bclri bext bexti binv binvi bset bseti
-
 set MODE=%~1
-if "%MODE%"=="" set MODE=all
+if "%MODE%"=="" set MODE=base
 
-REM === compilation ===
-vlog -sv +incdir+rtl/cpu_top +incdir+rtl/my_cpu rtl/cpu_top/*.sv rtl/cpu_top/*.svh rtl/my_cpu/*.svh rtl/my_cpu/*.sv test/*.sv
+set RTL_CPU=rtl\cpu_top
+set RTL_SOC=rtl\my_cpu
+set HEX_DIR=test\hex\riscv-tests
+
+if not exist results mkdir results
+
+REM ===== Compile RTL =====
+echo.
+echo ====== Compiling RTL (ModelSim vlog) ======
+vlib work 2>nul
+vlog -sv -work work ^
+    +incdir+%RTL_CPU% +incdir+%RTL_SOC% +incdir+test ^
+    +define+DEBUG_EN +define+USE_RTL_DIVIDER_MODEL ^
+    %RTL_CPU%\defines.svh ^
+    %RTL_CPU%\alu_wrapper.sv ^
+    %RTL_CPU%\branch_controller.sv ^
+    %RTL_CPU%\cpu_top.sv ^
+    %RTL_CPU%\decode_unit.sv ^
+    %RTL_CPU%\divider.sv ^
+    %RTL_CPU%\exe_stage.sv ^
+    %RTL_CPU%\forwarding_unit.sv ^
+    %RTL_CPU%\hazard_unit.sv ^
+    %RTL_CPU%\id_stage.sv ^
+    %RTL_CPU%\if_stage.sv ^
+    %RTL_CPU%\mem_stage.sv ^
+    %RTL_CPU%\mul.sv ^
+    %RTL_CPU%\regfile_csr.sv ^
+    %RTL_CPU%\regfiles.sv ^
+    %RTL_CPU%\wb_stage.sv ^
+    %RTL_CPU%\write_port_arbiter.sv ^
+    test\behav_multiplier.sv ^
+    test\tb_cpu_top_simple.sv
 if errorlevel 1 (
-    echo Compile failed!
+    echo [ERROR] Compilation failed
     exit /b 1
 )
-if not exist results (
-    mkdir results
-)
-echo.
+echo Compilation OK
 
-if /I "%MODE%"=="z" goto :run_z_only
-if /I "%MODE%"=="zba" goto :run_zba_only
-if /I "%MODE%"=="zbb" goto :run_zbb_only
-if /I "%MODE%"=="zbkb" goto :run_zbkb_only
-if /I "%MODE%"=="zbs" goto :run_zbs_only
-if /I "%MODE%"=="base" goto :run_base_only
-if /I not "%MODE%"=="all" goto :usage
-
-:run_base
-set "GROUP_NAME=UI instructions"
-set "TEST_PREFIX=rv32ui-p"
-set "TEST_LIST=%UI_INSTS%"
-set "RESULT_PREFIX=ui"
-call :run_group
-if errorlevel 1 goto :fail
-
-set "GROUP_NAME=MI instructions"
-set "TEST_PREFIX=rv32mi-p"
-set "TEST_LIST=%MI_INSTS%"
-set "RESULT_PREFIX=mi"
-call :run_group
-if errorlevel 1 goto :fail
-
-set "GROUP_NAME=UM instructions"
-set "TEST_PREFIX=rv32um-p"
-set "TEST_LIST=%UM_INSTS%"
-set "RESULT_PREFIX=um"
-call :run_group
-if errorlevel 1 goto :fail
-
-if /I "%MODE%"=="base" (
-    echo.
-    echo Base tests finished!
-    echo BASE TESTS PASSED!
-    pause
-    exit /b 0
-)
-
-if /I "%MODE%"=="all" (
-    call :run_z_groups
-    if errorlevel 1 goto :fail
-    echo.
-    echo All tests finished!
-    echo ALL TESTS PASSED!
-    pause
-    exit /b 0
-)
-
-:run_base_only
-set MODE=base
+if /I "%MODE%"=="base" goto :run_base
+if /I "%MODE%"=="all"  goto :run_all
 goto :run_base
 
-:run_z_only
-call :run_z_groups
-if errorlevel 1 goto :fail
+:run_all
+set RUN_Z=1
+goto :run_base
+
+:run_base
 echo.
-echo Z extension tests finished!
-echo Z TESTS PASSED!
-pause
-exit /b 0
-
-:run_z_groups
-set "GROUP_NAME=Zba instructions"
-set "TEST_PREFIX=rv32uzba-p"
-set "TEST_LIST=%ZBA_INSTS%"
-set "RESULT_PREFIX=zba"
-call :run_group
-if errorlevel 1 exit /b 1
-set "GROUP_NAME=Zbb implemented instructions"
-set "TEST_PREFIX=rv32uzbb-p"
-set "TEST_LIST=%ZBB_INSTS%"
-set "RESULT_PREFIX=zbb"
-call :run_group
-if errorlevel 1 exit /b 1
-set "GROUP_NAME=Zbkb instructions"
-set "TEST_PREFIX=rv32uzbkb-p"
-set "TEST_LIST=%ZBKB_INSTS%"
-set "RESULT_PREFIX=zbkb"
-call :run_group
-if errorlevel 1 exit /b 1
-set "GROUP_NAME=Zbs instructions"
-set "TEST_PREFIX=rv32uzbs-p"
-set "TEST_LIST=%ZBS_INSTS%"
-set "RESULT_PREFIX=zbs"
-call :run_group
-if errorlevel 1 exit /b 1
-exit /b 0
-
-:run_zba_only
-set "GROUP_NAME=Zba instructions"
-set "TEST_PREFIX=rv32uzba-p"
-set "TEST_LIST=%ZBA_INSTS%"
-set "RESULT_PREFIX=zba"
-call :run_group
+echo ====== Base Regression ======
+call :run_group "rv32ui-p" "%UI_INSTS%" "ui"
 if errorlevel 1 goto :fail
-echo Zba tests finished!
-pause
-exit /b 0
-
-:run_zbb_only
-set "GROUP_NAME=Zbb implemented instructions"
-set "TEST_PREFIX=rv32uzbb-p"
-set "TEST_LIST=%ZBB_INSTS%"
-set "RESULT_PREFIX=zbb"
-call :run_group
+call :run_group "rv32mi-p" "%MI_INSTS%" "mi"
 if errorlevel 1 goto :fail
-echo Zbb tests finished!
-pause
-exit /b 0
-
-:run_zbkb_only
-set "GROUP_NAME=Zbkb instructions"
-set "TEST_PREFIX=rv32uzbkb-p"
-set "TEST_LIST=%ZBKB_INSTS%"
-set "RESULT_PREFIX=zbkb"
-call :run_group
+call :run_group "rv32um-p" "%UM_INSTS%" "um"
 if errorlevel 1 goto :fail
-echo Zbkb tests finished!
-pause
-exit /b 0
 
-:run_zbs_only
-set "GROUP_NAME=Zbs instructions"
-set "TEST_PREFIX=rv32uzbs-p"
-set "TEST_LIST=%ZBS_INSTS%"
-set "RESULT_PREFIX=zbs"
-call :run_group
-if errorlevel 1 goto :fail
-echo Zbs tests finished!
-pause
+if "%RUN_Z%"=="1" (
+    echo.
+    echo ====== Z-bitman Regression ======
+    call :run_group "rv32uzba-p"  "%ZBA_INSTS%"  "zba"
+    if errorlevel 1 goto :fail
+    call :run_group "rv32uzbb-p"  "%ZBB_INSTS%"  "zbb"
+    if errorlevel 1 goto :fail
+    call :run_group "rv32uzbkb-p" "%ZBKB_INSTS%" "zbkb"
+    if errorlevel 1 goto :fail
+    call :run_group "rv32uzbs-p"  "%ZBS_INSTS%"  "zbs"
+    if errorlevel 1 goto :fail
+)
+
+echo.
+echo ==============================================
+echo Regression Complete — All tests passed
+echo ==============================================
 exit /b 0
 
 :run_group
-echo Starting simulation for %GROUP_NAME%...
-for %%i in (%TEST_LIST%) do (
-    echo.
-    echo ====== Simulating %TEST_PREFIX%-%%i ======
-    if not exist "hex\riscv-tests\%TEST_PREFIX%-%%i.hex" (
-        powershell -Command "Write-Host '[MISSING] %TEST_PREFIX%-%%i.hex' -ForegroundColor Yellow"
-        exit /b 1
-    )
-    copy /Y "hex\riscv-tests\%TEST_PREFIX%-%%i.hex" "hex\riscv-tests\rv32-p-riscv.hex" >nul
-    vsim -c -do "run -all; quit -force" tb_my_cpu > "results\%RESULT_PREFIX%_%%i.txt"
-    findstr /C:"Test passed." "results\%RESULT_PREFIX%_%%i.txt" >nul
-    if errorlevel 1 (
-        powershell -Command "Write-Host '[FAILED] %TEST_PREFIX%-%%i' -ForegroundColor Red"
-        powershell -Command "Write-Host 'Simulating failed on: %TEST_PREFIX%-%%i' -ForegroundColor Red"
-        type "results\%RESULT_PREFIX%_%%i.txt"
-        exit /b 1
+set "PREFIX=%~1"
+set "TESTS=%~2"
+set "LABEL=%~3"
+echo.
+echo --- %LABEL% ---
+for %%t in (%TESTS%) do (
+    set "HEX=%HEX_DIR%\%PREFIX%-%%t.hex"
+    if not exist "!HEX!" (
+        echo [SKIP] !HEX! not found
     ) else (
-        powershell -Command "Write-Host '[PASSED] %TEST_PREFIX%-%%i' -ForegroundColor Green"
+        call :run_one "%PREFIX%-%%t" "%LABEL%_%%t" "!HEX!"
+        if errorlevel 1 exit /b 1
     )
 )
-echo.
+exit /b 0
+
+:run_one
+set "NAME=%~1"
+set "RESULT=%~2"
+set "HEX_FILE=%~3"
+
+REM Convert backslashes to forward slashes for ModelSim
+set "HEX_FWD=%HEX_FILE:\=/%"
+
+echo [RUN] %NAME%
+vsim -c -do "run -all; quit -f" ^
+    +MEM_FILE=%HEX_FWD% ^
+    tb_cpu_top_simple > "results\%RESULT%.txt" 2>&1
+
+findstr /C:"Test passed." "results\%RESULT%.txt" >nul
+if errorlevel 1 (
+    echo [FAIL] %NAME%
+    type "results\%RESULT%.txt"
+    exit /b 1
+) else (
+    echo [PASS] %NAME%
+)
 exit /b 0
 
 :fail
 echo.
-powershell -Command "Write-Host 'failure detected during simulation.' -ForegroundColor Red"
-pause
-exit /b 1
-
-:usage
-echo Unknown mode: %MODE%
-echo Usage: run_all.bat [all^|base^|z^|zba^|zbb^|zbkb^|zbs]
+echo ==============================================
+echo Regression FAILED
+echo ==============================================
 exit /b 1

@@ -205,48 +205,22 @@ module soc_inst_ram #(
     input  logic        en,
     output logic [31:0] rdata
 );
-`ifdef DEBUG_EN
     localparam int INDEX_WIDTH = $clog2(WORDS);
     logic [31:0] mem [0:WORDS-1];
 
+    // Initialize memory from hex file (replaces XPM MEMORY_INIT_FILE)
+    initial begin
+        if (MEM_FILE != "none") begin
+            $readmemh(MEM_FILE, mem);
+        end
+    end
+
+    // Registered read — 1-cycle latency
     always_ff @(posedge clk) begin
         if (en) begin
             rdata <= mem[addr[INDEX_WIDTH+1:2]];
         end
     end
-`else
-    localparam int INDEX_WIDTH = $clog2(WORDS);
-
-    xpm_memory_sprom #(
-        .ADDR_WIDTH_A        (INDEX_WIDTH),
-        .MEMORY_SIZE         (32 * WORDS),
-        .MEMORY_PRIMITIVE    ("block"),
-        .READ_DATA_WIDTH_A   (32),
-        .MEMORY_INIT_FILE    (MEM_FILE),
-        .MEMORY_INIT_PARAM   (""),
-        .READ_LATENCY_A      (1),
-        .READ_RESET_VALUE_A  ("0"),
-        .USE_MEM_INIT        (1),
-        .WAKEUP_TIME         ("disable_sleep"),
-        .MEMORY_OPTIMIZATION ("false"),
-        .MESSAGE_CONTROL     (0),
-        .ECC_MODE            ("no_ecc"),
-        .AUTO_SLEEP_TIME     (0),
-        .CASCADE_HEIGHT      (0)
-    ) u_xpm_inst_rom (
-        .clka           (clk),
-        .ena            (en),
-        .addra          (addr[INDEX_WIDTH+1:2]),
-        .douta          (rdata),
-        .rsta           (1'b0),
-        .regcea         (1'b1),
-        .sleep          (1'b0),
-        .injectsbiterra (1'b0),
-        .injectdbiterra (1'b0),
-        .sbiterra       (),
-        .dbiterra       ()
-    );
-`endif
 endmodule
 
 module soc_data_ram #(
@@ -264,127 +238,19 @@ module soc_data_ram #(
     input  logic [31:0] wdata,
     output logic [31:0] rdata
 );
-`ifdef DEBUG_EN
     localparam int INDEX_WIDTH = $clog2(WORDS);
     logic [31:0] mem [0:WORDS-1];
 
+    // Combinational read — single-cycle access
     assign rdata = en ? mem[addr[INDEX_WIDTH+1:2]] : 32'd0;
 
+    // Synchronous write with byte enables
     always_ff @(posedge clk) begin
         if (en) begin
-            if (wen[0]) begin
-                mem[addr[INDEX_WIDTH+1:2]][7:0] <= wdata[7:0];
-            end
-            if (wen[1]) begin
-                mem[addr[INDEX_WIDTH+1:2]][15:8] <= wdata[15:8];
-            end
-            if (wen[2]) begin
-                mem[addr[INDEX_WIDTH+1:2]][23:16] <= wdata[23:16];
-            end
-            if (wen[3]) begin
-                mem[addr[INDEX_WIDTH+1:2]][31:24] <= wdata[31:24];
-            end
+            if (wen[0]) mem[addr[INDEX_WIDTH+1:2]][7:0]   <= wdata[7:0];
+            if (wen[1]) mem[addr[INDEX_WIDTH+1:2]][15:8]  <= wdata[15:8];
+            if (wen[2]) mem[addr[INDEX_WIDTH+1:2]][23:16] <= wdata[23:16];
+            if (wen[3]) mem[addr[INDEX_WIDTH+1:2]][31:24] <= wdata[31:24];
         end
     end
-`else
-    localparam int INDEX_WIDTH = $clog2(WORDS);
-    localparam int CHUNK_WORDS = 4096;
-    localparam int CHUNK_INDEX_WIDTH = $clog2(CHUNK_WORDS);
-
-    logic [3:0]  chunk_sel;
-    logic [15:0] chunk_en;
-    logic [15:0] read_chunk_onehot_q;
-    logic [31:0] chunk_rdata [0:15];
-    logic [31:0] selected_chunk_rdata;
-
-    assign chunk_sel = addr[INDEX_WIDTH+1:CHUNK_INDEX_WIDTH+2];
-    assign rdata = selected_chunk_rdata;
-
-    always_comb begin
-        chunk_en = 16'd0;
-        if (en) begin
-            chunk_en[chunk_sel] = 1'b1;
-        end
-    end
-
-    always_ff @(posedge clk) begin
-        if (en) begin
-            read_chunk_onehot_q <= chunk_en;
-        end
-    end
-
-    always_comb begin
-        selected_chunk_rdata = 32'd0;
-        for (int i = 0; i < 16; i++) begin
-            selected_chunk_rdata |= ({32{read_chunk_onehot_q[i]}} & chunk_rdata[i]);
-        end
-    end
-
-    soc_data_ram_word_chunk u_data_chunk0  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[0]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[0]));
-    soc_data_ram_word_chunk u_data_chunk1  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[1]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[1]));
-    soc_data_ram_word_chunk u_data_chunk2  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[2]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[2]));
-    soc_data_ram_word_chunk u_data_chunk3  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[3]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[3]));
-    soc_data_ram_word_chunk u_data_chunk4  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[4]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[4]));
-    soc_data_ram_word_chunk u_data_chunk5  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[5]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[5]));
-    soc_data_ram_word_chunk u_data_chunk6  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[6]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[6]));
-    soc_data_ram_word_chunk u_data_chunk7  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[7]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[7]));
-    soc_data_ram_word_chunk u_data_chunk8  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[8]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[8]));
-    soc_data_ram_word_chunk u_data_chunk9  (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[9]),  .wen(wen), .wdata(wdata), .rdata(chunk_rdata[9]));
-    soc_data_ram_word_chunk u_data_chunk10 (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[10]), .wen(wen), .wdata(wdata), .rdata(chunk_rdata[10]));
-    soc_data_ram_word_chunk u_data_chunk11 (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[11]), .wen(wen), .wdata(wdata), .rdata(chunk_rdata[11]));
-    soc_data_ram_word_chunk u_data_chunk12 (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[12]), .wen(wen), .wdata(wdata), .rdata(chunk_rdata[12]));
-    soc_data_ram_word_chunk u_data_chunk13 (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[13]), .wen(wen), .wdata(wdata), .rdata(chunk_rdata[13]));
-    soc_data_ram_word_chunk u_data_chunk14 (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[14]), .wen(wen), .wdata(wdata), .rdata(chunk_rdata[14]));
-    soc_data_ram_word_chunk u_data_chunk15 (.clk(clk), .addr(addr[CHUNK_INDEX_WIDTH+1:2]), .en(chunk_en[15]), .wen(wen), .wdata(wdata), .rdata(chunk_rdata[15]));
-`endif
-endmodule
-
-module soc_data_ram_word_chunk #(
-    parameter int WORDS = 4096,
-    parameter string MEM_FILE = "none"
-) (
-    input  logic                     clk,
-    input  logic [$clog2(WORDS)-1:0] addr,
-    input  logic                     en,
-    input  logic [3:0]               wen,
-    input  logic [31:0]              wdata,
-    output logic [31:0]              rdata
-);
-    localparam int INDEX_WIDTH = $clog2(WORDS);
-
-    xpm_memory_spram #(
-        .ADDR_WIDTH_A        (INDEX_WIDTH),
-        .AUTO_SLEEP_TIME     (0),
-        .BYTE_WRITE_WIDTH_A  (8),
-        .CASCADE_HEIGHT      (0),
-        .ECC_MODE            ("no_ecc"),
-        .MEMORY_INIT_FILE    (MEM_FILE),
-        .MEMORY_INIT_PARAM   ("0"),
-        .MEMORY_OPTIMIZATION ("false"),
-        .MEMORY_PRIMITIVE    ("block"),
-        .MEMORY_SIZE         (32 * WORDS),
-        .MESSAGE_CONTROL     (0),
-        .READ_DATA_WIDTH_A   (32),
-        .READ_LATENCY_A      (1),
-        .READ_RESET_VALUE_A  ("0"),
-        .RST_MODE_A          ("SYNC"),
-        .USE_MEM_INIT        (1),
-        .WAKEUP_TIME         ("disable_sleep"),
-        .WRITE_DATA_WIDTH_A  (32),
-        .WRITE_MODE_A        ("read_first")
-    ) u_xpm_data_ram (
-        .clka           (clk),
-        .rsta           (1'b0),
-        .ena            (en),
-        .regcea         (1'b1),
-        .wea            (wen),
-        .addra          (addr),
-        .dina           (wdata),
-        .douta          (rdata),
-        .sleep          (1'b0),
-        .injectsbiterra (1'b0),
-        .injectdbiterra (1'b0),
-        .sbiterra       (),
-        .dbiterra       ()
-    );
 endmodule
