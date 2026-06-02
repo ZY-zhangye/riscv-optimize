@@ -11,6 +11,8 @@ results/
 xsim.log
 xsim_*.backup.log
 test_snap.wdb
+*.wdb
+*.vcd
 compile.log
 .claude/scheduled_tasks.lock
 
